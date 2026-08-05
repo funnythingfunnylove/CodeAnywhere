@@ -11,7 +11,7 @@ settings:
     DEVELOPMENT_TEAM: SA4L8J8X2M
     CODE_SIGN_STYLE: Automatic
     CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 0.1.0
+    MARKETING_VERSION: 0.1.1
     ENABLE_USER_SCRIPT_SANDBOXING: true
     SWIFT_STRICT_CONCURRENCY: targeted
 targets:
@@ -44,6 +44,11 @@ targets:
           - fetch
         BGTaskSchedulerPermittedIdentifiers:
           - me.fenglei.codeanywhere.refresh
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Editor
+            CFBundleURLName: me.fenglei.codeanywhere.thread
+            CFBundleURLSchemes:
+              - codeanywhere
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
@@ -64,6 +69,43 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: me.fenglei.codeanywhere.tests
         GENERATE_INFOPLIST_FILE: true
+  CodeAnywhereMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - SourcesMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.fenglei.codeanywhere.mac
+        PRODUCT_NAME: CodeAnywhere Mac
+        PRODUCT_MODULE_NAME: CodeAnywhereMac
+        ENABLE_APP_SANDBOX: false
+        ENABLE_HARDENED_RUNTIME: true
+    info:
+      path: SourcesMac/App/Info.plist
+      properties:
+        CFBundleDisplayName: CodeAnywhere Mac
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        ITSAppUsesNonExemptEncryption: false
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+  CodeAnywhereMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - TestsMac
+    dependencies:
+      - target: CodeAnywhereMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.fenglei.codeanywhere.mac.tests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/CodeAnywhere Mac.app/Contents/MacOS/CodeAnywhere Mac"
+        BUNDLE_LOADER: "$(TEST_HOST)"
 schemes:
   CodeAnywhere:
     build:
@@ -73,3 +115,13 @@ schemes:
     test:
       targets:
         - CodeAnywhereTests
+  CodeAnywhereMac:
+    build:
+      targets:
+        CodeAnywhereMac: all
+        CodeAnywhereMacTests: [test]
+    run:
+      config: Debug
+    test:
+      targets:
+        - CodeAnywhereMacTests

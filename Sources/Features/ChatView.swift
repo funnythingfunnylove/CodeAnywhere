@@ -52,10 +52,13 @@ struct ChatView: View {
                         MessageBubble(message: message)
                             .id(message.id)
                     }
-                    if let streaming = store.streamingText[thread.id], !streaming.isEmpty {
-                        MessageBubble(message: ChatMessage(id: "streaming", role: .assistant, text: streaming, date: nil))
-                            .id("streaming")
+                    ForEach(store.streamingItems[thread.id] ?? []) { item in
+                        if !item.displayedText.isEmpty {
+                            MessageBubble(message: item.message, isStreaming: true)
+                                .id(item.message.id)
+                        }
                     }
+                    Color.clear.frame(height: 1).id("streaming-bottom")
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
@@ -64,8 +67,8 @@ struct ChatView: View {
             .onChange(of: detail?.messages.count ?? 0) { _, _ in
                 if let id = detail?.messages.last?.id { withAnimation(.smooth) { proxy.scrollTo(id, anchor: .bottom) } }
             }
-            .onChange(of: store.streamingText[thread.id]) { _, _ in
-                withAnimation(.smooth) { proxy.scrollTo("streaming", anchor: .bottom) }
+            .onChange(of: store.streamingItems[thread.id]) { _, _ in
+                proxy.scrollTo("streaming-bottom", anchor: .bottom)
             }
         }
     }
@@ -150,8 +153,17 @@ struct ChatView: View {
 
 private struct MessageBubble: View {
     let message: ChatMessage
+    let isStreaming: Bool
+    @State private var isExpanded: Bool
+
+    init(message: ChatMessage, isStreaming: Bool = false) {
+        self.message = message
+        self.isStreaming = isStreaming
+        _isExpanded = State(initialValue: !ChatMessageDisplayPolicy.startsCollapsed(message))
+    }
 
     private var isUser: Bool { message.role == .user }
+    private var isCollapsible: Bool { ChatMessageDisplayPolicy.startsCollapsed(message) }
     private var icon: String {
         switch message.role {
         case .user: return "person.fill"
@@ -172,7 +184,20 @@ private struct MessageBubble: View {
                     .frame(width: 24, height: 24)
                     .background(Color.accentColor.opacity(0.10), in: Circle())
             }
-            FormattedMessageContent(message: message, isUser: isUser)
+            Group {
+                if isCollapsible {
+                    CollapsibleMessageContent(
+                        message: message,
+                        isStreaming: isStreaming,
+                        isExpanded: $isExpanded
+                    )
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        FormattedMessageContent(message: message, isUser: isUser)
+                        if isStreaming { StreamingIndicator() }
+                    }
+                }
+            }
                 .padding(.horizontal, 11)
                 .padding(.vertical, 8)
                 .background(
@@ -182,8 +207,12 @@ private struct MessageBubble: View {
             if !isUser { Spacer(minLength: 18) }
         }
         .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityText)
+        .modifier(
+            MessageAccessibilityModifier(
+                keepsChildren: isCollapsible,
+                label: accessibilityText
+            )
+        )
     }
 
     private var accessibilityText: String {
@@ -191,6 +220,84 @@ private struct MessageBubble: View {
         let imageText = message.images.map(\.altText).joined(separator: "，")
         let content = [message.text, imageText].filter { !$0.isEmpty }.joined(separator: "，")
         return "\(speaker)：\(content)"
+    }
+}
+
+private struct CollapsibleMessageContent: View {
+    let message: ChatMessage
+    let isStreaming: Bool
+    @Binding var isExpanded: Bool
+
+    private var title: String {
+        message.role == .reasoning ? "思考过程" : "命令行"
+    }
+
+    private var preview: String {
+        message.text
+            .split(whereSeparator: \.isNewline)
+            .first
+            .map(String.init) ?? ""
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            FormattedMessageContent(message: message, isUser: false)
+                .padding(.top, 7)
+        } label: {
+            HStack(spacing: 7) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    if !isExpanded, !preview.isEmpty {
+                        Text(preview)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 8)
+                if isStreaming {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .accessibilityLabel("正在流式输出")
+                }
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .tint(.secondary)
+        .accessibilityHint(isExpanded ? "双击折叠" : "双击展开")
+    }
+}
+
+private struct StreamingIndicator: View {
+    var body: some View {
+        HStack(spacing: 5) {
+            ProgressView()
+                .controlSize(.mini)
+            Text("正在输出")
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Codex 正在流式输出")
+    }
+}
+
+private struct MessageAccessibilityModifier: ViewModifier {
+    let keepsChildren: Bool
+    let label: String
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if keepsChildren {
+            content.accessibilityElement(children: .contain)
+        } else {
+            content
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(label)
+        }
     }
 }
 

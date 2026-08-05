@@ -3,6 +3,160 @@ import UserNotifications
 @testable import CodeAnywhere
 
 final class ModelsTests: XCTestCase {
+    func testStreamingItemsPreferReasoningSummaryAndKeepCommandContext() {
+        var assistant = StreamingChatItem(id: "assistant", kind: .assistant)
+        assistant.append("流式", to: .primary)
+        assistant.append("回答", to: .primary)
+        XCTAssertEqual(assistant.displayedText, "流式回答")
+        XCTAssertEqual(assistant.message.role, .assistant)
+
+        var reasoning = StreamingChatItem(id: "reasoning", kind: .reasoning)
+        reasoning.append("内部推理", to: .secondary)
+        XCTAssertEqual(reasoning.displayedText, "内部推理")
+        reasoning.append("摘要", to: .primary)
+        XCTAssertEqual(reasoning.displayedText, "摘要")
+
+        var command = StreamingChatItem(
+            id: "command",
+            kind: .command,
+            primaryText: "xcodebuild test"
+        )
+        command.append("BUILD SUCCEEDED", to: .secondary)
+        XCTAssertEqual(command.displayedText, "xcodebuild test\nBUILD SUCCEEDED")
+        XCTAssertEqual(command.message.format, .code(language: "shell"))
+    }
+
+    func testReasoningAndShellCommandsStartCollapsed() {
+        let reasoning = ChatMessage(id: "reasoning", role: .reasoning, text: "分析", date: nil)
+        let command = ChatMessage(
+            id: "command",
+            role: .tool,
+            text: "ls",
+            date: nil,
+            format: .code(language: "shell")
+        )
+        let tool = ChatMessage(id: "tool", role: .tool, text: "修改文件", date: nil)
+        let assistant = ChatMessage(id: "assistant", role: .assistant, text: "完成", date: nil)
+
+        XCTAssertTrue(ChatMessageDisplayPolicy.startsCollapsed(reasoning))
+        XCTAssertTrue(ChatMessageDisplayPolicy.startsCollapsed(command))
+        XCTAssertFalse(ChatMessageDisplayPolicy.startsCollapsed(tool))
+        XCTAssertFalse(ChatMessageDisplayPolicy.startsCollapsed(assistant))
+    }
+
+    @MainActor
+    func testStoreMapsProtocolDeltasIntoOrderedStreamingItems() async throws {
+        let suiteName = "CodeAnywhereTests.Streaming.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = RemoteCodexStore(defaults: defaults)
+
+        await store.handle(RPCNotification(
+            method: "item/agentMessage/delta",
+            params: .object([
+                "threadId": .string("thread-1"),
+                "itemId": .string("agent-1"),
+                "delta": .string("流式回答")
+            ])
+        ))
+        await store.handle(RPCNotification(
+            method: "item/reasoning/textDelta",
+            params: .object([
+                "threadId": .string("thread-1"),
+                "itemId": .string("reasoning-1"),
+                "delta": .string("详细推理")
+            ])
+        ))
+        await store.handle(RPCNotification(
+            method: "item/reasoning/summaryTextDelta",
+            params: .object([
+                "threadId": .string("thread-1"),
+                "itemId": .string("reasoning-1"),
+                "delta": .string("思考摘要")
+            ])
+        ))
+        await store.handle(RPCNotification(
+            method: "item/started",
+            params: .object([
+                "threadId": .string("thread-1"),
+                "item": .object([
+                    "id": .string("command-1"),
+                    "type": .string("commandExecution"),
+                    "command": .string("swift test")
+                ])
+            ])
+        ))
+        await store.handle(RPCNotification(
+            method: "item/commandExecution/outputDelta",
+            params: .object([
+                "threadId": .string("thread-1"),
+                "itemId": .string("command-1"),
+                "delta": .string("passed")
+            ])
+        ))
+
+        let items = try XCTUnwrap(store.streamingItems["thread-1"])
+        XCTAssertEqual(items.map(\.id), ["agent-1", "reasoning-1", "command-1"])
+        XCTAssertEqual(items.map(\.displayedText), ["流式回答", "思考摘要", "swift test\npassed"])
+    }
+
+    func testDeepLinkParserAcceptsThreadURL() throws {
+        let url = try XCTUnwrap(URL(string: "codeanywhere://thread/019fcfcf-dcc2-7ed2-873b-4c1740b5f782"))
+
+        XCTAssertEqual(
+            CodeAnywhereDeepLink.threadID(from: url),
+            "019fcfcf-dcc2-7ed2-873b-4c1740b5f782"
+        )
+    }
+
+    func testDeepLinkParserDecodesSingleEncodedPathComponent() throws {
+        let url = try XCTUnwrap(URL(string: "codeanywhere://thread/parent%2F%E5%AD%90%E5%AF%B9%E8%AF%9D%20%231"))
+
+        XCTAssertEqual(CodeAnywhereDeepLink.threadID(from: url), "parent/子对话 #1")
+    }
+
+    func testDeepLinkParserRejectsInvalidAndOversizedURLs() throws {
+        let oversizedID = String(repeating: "a", count: CodeAnywhereDeepLink.maximumThreadIDLength + 1)
+        let invalidURLs = [
+            "https://thread/thread-1",
+            "codeanywhere://project/thread-1",
+            "codeanywhere://thread",
+            "codeanywhere://thread/",
+            "codeanywhere://thread/thread-1/extra",
+            "codeanywhere://thread/thread-1?prompt=secret",
+            "codeanywhere://thread/thread-1#fragment",
+            "codeanywhere://user@thread/thread-1",
+            "codeanywhere://thread:4500/thread-1",
+            "codeanywhere://thread/\(oversizedID)"
+        ]
+
+        for value in invalidURLs {
+            let url = try XCTUnwrap(URL(string: value), "URL fixture should be constructible: \(value)")
+            XCTAssertNil(CodeAnywhereDeepLink.threadID(from: url), value)
+        }
+    }
+
+    @MainActor
+    func testRequestedDeepLinkThreadPersistsUntilConsumed() async throws {
+        let suiteName = "CodeAnywhereTests.PendingThread.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var store: RemoteCodexStore? = RemoteCodexStore(defaults: defaults)
+
+        await store?.requestOpenThread("thread-persisted")
+
+        XCTAssertEqual(store?.requestedThreadID, "thread-persisted")
+        XCTAssertEqual(defaults.string(forKey: StorageKey.pendingThreadID), "thread-persisted")
+
+        store = nil
+        let restoredStore = RemoteCodexStore(defaults: defaults)
+        XCTAssertEqual(restoredStore.requestedThreadID, "thread-persisted")
+
+        restoredStore.consumeRequestedThread()
+        XCTAssertNil(restoredStore.requestedThreadID)
+        XCTAssertNil(defaults.string(forKey: StorageKey.pendingThreadID))
+    }
+
     func testSavedEndpointEnablesAutoConnectAndExplicitDisconnectDisablesIt() throws {
         let suiteName = "CodeAnywhereTests.ConnectionPreferences.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -42,10 +196,47 @@ final class ModelsTests: XCTestCase {
         XCTAssertTrue(BackgroundWatchStore.all(defaults: defaults).isEmpty)
     }
 
+    func testBackgroundWatchStoreTakesStoredTitleExactlyOnce() throws {
+        let suiteName = "CodeAnywhereTests.BackgroundWatchStoreTake.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        BackgroundWatchStore.add(threadID: "thread-1", title: "后台任务", defaults: defaults)
+
+        XCTAssertEqual(
+            BackgroundWatchStore.take(threadID: "thread-1", defaults: defaults),
+            WatchedThread(id: "thread-1", title: "后台任务")
+        )
+        XCTAssertNil(BackgroundWatchStore.take(threadID: "thread-1", defaults: defaults))
+    }
+
+    @MainActor
+    func testPinnedProjectsPersistAndSortBeforeRecentProjects() throws {
+        let suiteName = "CodeAnywhereTests.PinnedProjects.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(["/tmp/Older", "/tmp/Newer"], forKey: StorageKey.projects)
+
+        var store: RemoteCodexStore? = RemoteCodexStore(defaults: defaults)
+        store?.toggleProjectPin("/tmp/Older")
+
+        XCTAssertEqual(store?.projects.map(\.path), ["/tmp/Older", "/tmp/Newer"])
+        XCTAssertEqual(store?.projects.map(\.isPinned), [true, false])
+        XCTAssertEqual(defaults.stringArray(forKey: StorageKey.pinnedProjects), ["/tmp/Older"])
+
+        store = nil
+        let restoredStore = RemoteCodexStore(defaults: defaults)
+        XCTAssertEqual(restoredStore.projects.first?.path, "/tmp/Older")
+        XCTAssertTrue(restoredStore.projects.first?.isPinned == true)
+    }
+
     @MainActor
     func testContinuingHistoricalThreadResumesItBeforeStartingTurn() async throws {
         let client = RecordingCodexClient()
-        let store = RemoteCodexStore(client: client)
+        let suiteName = "CodeAnywhereTests.HistoricalThread.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = RemoteCodexStore(client: client, defaults: defaults)
 
         try await store.send(
             prompt: "继续提问",
@@ -56,6 +247,7 @@ final class ModelsTests: XCTestCase {
 
         let methods = await client.recordedMethods()
         XCTAssertEqual(Array(methods.prefix(2)), ["thread/resume", "turn/start"])
+        XCTAssertEqual(BackgroundWatchStore.all(defaults: defaults).map(\.id), ["historical-thread"])
     }
 
     func testLiveCodexAppServerHandshakeAndCatalogWhenAvailable() async throws {

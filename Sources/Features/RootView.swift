@@ -30,6 +30,14 @@ struct RootView: View {
         } message: {
             Text(store.errorMessage ?? "")
         }
+        .onAppear { selectConversationsForPendingThread() }
+        .onChange(of: store.requestedThreadID) { _, _ in
+            selectConversationsForPendingThread()
+        }
+    }
+
+    private func selectConversationsForPendingThread() {
+        guard store.requestedThreadID != nil else { return }
+        selectedTab = 0
     }
 }
-

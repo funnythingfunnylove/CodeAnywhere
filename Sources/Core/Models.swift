@@ -187,6 +187,82 @@ struct ChatMessage: Identifiable, Hashable, Sendable {
     }
 }
 
+enum StreamingChatItemKind: Hashable, Sendable {
+    case assistant
+    case reasoning
+    case command
+}
+
+enum StreamingChatItemChannel: Sendable {
+    case primary
+    case secondary
+}
+
+struct StreamingChatItem: Identifiable, Hashable, Sendable {
+    let id: String
+    let kind: StreamingChatItemKind
+    var primaryText: String
+    var secondaryText: String
+
+    init(
+        id: String,
+        kind: StreamingChatItemKind,
+        primaryText: String = "",
+        secondaryText: String = ""
+    ) {
+        self.id = id
+        self.kind = kind
+        self.primaryText = primaryText
+        self.secondaryText = secondaryText
+    }
+
+    var displayedText: String {
+        switch kind {
+        case .assistant:
+            return primaryText
+        case .reasoning:
+            return primaryText.isEmpty ? secondaryText : primaryText
+        case .command:
+            return [primaryText, secondaryText]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+        }
+    }
+
+    var message: ChatMessage {
+        switch kind {
+        case .assistant:
+            return ChatMessage(id: "stream-\(id)", role: .assistant, text: displayedText, date: nil)
+        case .reasoning:
+            return ChatMessage(id: "stream-\(id)", role: .reasoning, text: displayedText, date: nil)
+        case .command:
+            return ChatMessage(
+                id: "stream-\(id)",
+                role: .tool,
+                text: displayedText,
+                date: nil,
+                format: .code(language: "shell")
+            )
+        }
+    }
+
+    mutating func append(_ delta: String, to channel: StreamingChatItemChannel) {
+        switch channel {
+        case .primary: primaryText += delta
+        case .secondary: secondaryText += delta
+        }
+    }
+}
+
+enum ChatMessageDisplayPolicy {
+    static func startsCollapsed(_ message: ChatMessage) -> Bool {
+        if message.role == .reasoning { return true }
+        guard message.role == .tool,
+              case .code(let language) = message.format else { return false }
+        return language?.lowercased() == "shell"
+    }
+}
+
 struct ThreadDetail: Sendable {
     var thread: CodexThread
     var messages: [ChatMessage]
@@ -475,4 +551,5 @@ struct ProjectSummary: Identifiable, Hashable, Sendable {
     let name: String
     let threadCount: Int
     let updatedAt: Date?
+    let isPinned: Bool
 }

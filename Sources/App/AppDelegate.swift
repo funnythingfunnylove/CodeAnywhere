@@ -4,11 +4,14 @@ import UserNotifications
 
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     static let refreshIdentifier = "me.fenglei.codeanywhere.refresh"
+    private static weak var instance: AppDelegate?
+    private var backgroundExecutionIdentifier: UIBackgroundTaskIdentifier = .invalid
 
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        Self.instance = self
         UNUserNotificationCenter.current().delegate = self
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshIdentifier, using: nil) { task in
             guard let refreshTask = task as? BGAppRefreshTask else {
@@ -41,24 +44,103 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
+        startFiniteBackgroundExecution(using: application)
         Self.scheduleBackgroundRefresh()
+    }
+
+    func applicationWillEnterForeground(_ application: UIApplication) {
+        endFiniteBackgroundExecution(using: application)
+    }
+
+    static func backgroundWatchStateChanged() {
+        guard let instance else {
+            scheduleBackgroundRefresh()
+            return
+        }
+        if BackgroundWatchStore.all().isEmpty {
+            instance.endFiniteBackgroundExecution(using: .shared)
+        } else {
+            scheduleBackgroundRefresh()
+        }
     }
 
     static func scheduleBackgroundRefresh() {
         guard !BackgroundWatchStore.all().isEmpty else { return }
-        let request = BGAppRefreshTaskRequest(identifier: refreshIdentifier)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 60)
-        try? BGTaskScheduler.shared.submit(request)
+        BGTaskScheduler.shared.getPendingTaskRequests { requests in
+            guard !requests.contains(where: { $0.identifier == refreshIdentifier }) else {
+                BackgroundRefreshDiagnostics.recordScheduled()
+                return
+            }
+            let request = BGAppRefreshTaskRequest(identifier: refreshIdentifier)
+            request.earliestBeginDate = Date(timeIntervalSinceNow: 60)
+            do {
+                try BGTaskScheduler.shared.submit(request)
+                BackgroundRefreshDiagnostics.recordScheduled()
+            } catch {
+                BackgroundRefreshDiagnostics.recordScheduleFailure(error)
+            }
+        }
     }
 
     private static func handle(_ task: BGAppRefreshTask) {
         let operation = Task {
             let success = await BackgroundCompletionMonitor.checkNow()
-            task.setTaskCompleted(success: success)
             if !BackgroundWatchStore.all().isEmpty { scheduleBackgroundRefresh() }
+            task.setTaskCompleted(success: success)
         }
         task.expirationHandler = { operation.cancel() }
     }
+
+    private func startFiniteBackgroundExecution(using application: UIApplication) {
+        guard !BackgroundWatchStore.all().isEmpty,
+              backgroundExecutionIdentifier == .invalid else { return }
+        backgroundExecutionIdentifier = application.beginBackgroundTask(withName: "Finish Codex notification") { [weak self] in
+            guard let self else { return }
+            self.endFiniteBackgroundExecution(using: application)
+        }
+    }
+
+    private func endFiniteBackgroundExecution(using application: UIApplication) {
+        guard backgroundExecutionIdentifier != .invalid else { return }
+        application.endBackgroundTask(backgroundExecutionIdentifier)
+        backgroundExecutionIdentifier = .invalid
+    }
+}
+
+enum BackgroundRefreshDiagnostics {
+    private static let scheduledAtKey = "codeanywhere.backgroundRefreshScheduledAt"
+    private static let checkedAtKey = "codeanywhere.backgroundRefreshCheckedAt"
+    private static let errorKey = "codeanywhere.backgroundRefreshError"
+
+    static func recordScheduled(defaults: UserDefaults = .standard) {
+        defaults.set(Date(), forKey: scheduledAtKey)
+        defaults.removeObject(forKey: errorKey)
+    }
+
+    static func recordCheck(success: Bool, defaults: UserDefaults = .standard) {
+        defaults.set(Date(), forKey: checkedAtKey)
+        if success { defaults.removeObject(forKey: errorKey) }
+    }
+
+    static func recordScheduleFailure(_ error: Error, defaults: UserDefaults = .standard) {
+        defaults.set(error.localizedDescription, forKey: errorKey)
+    }
+
+    static func snapshot(defaults: UserDefaults = .standard) -> BackgroundRefreshSnapshot {
+        BackgroundRefreshSnapshot(
+            watchedCount: BackgroundWatchStore.all(defaults: defaults).count,
+            scheduledAt: defaults.object(forKey: scheduledAtKey) as? Date,
+            checkedAt: defaults.object(forKey: checkedAtKey) as? Date,
+            errorMessage: defaults.string(forKey: errorKey)
+        )
+    }
+}
+
+struct BackgroundRefreshSnapshot: Equatable, Sendable {
+    let watchedCount: Int
+    let scheduledAt: Date?
+    let checkedAt: Date?
+    let errorMessage: String?
 }
 
 actor NotificationManager {
@@ -131,9 +213,15 @@ enum NotificationAuthorizationState: Equatable, Sendable {
 enum BackgroundCompletionMonitor {
     static func checkNow() async -> Bool {
         let watched = BackgroundWatchStore.all()
-        guard !watched.isEmpty else { return true }
+        guard !watched.isEmpty else {
+            BackgroundRefreshDiagnostics.recordCheck(success: true)
+            return true
+        }
         guard let data = UserDefaults.standard.data(forKey: StorageKey.endpoint),
-              let endpoint = try? JSONDecoder().decode(ServerEndpoint.self, from: data) else { return false }
+              let endpoint = try? JSONDecoder().decode(ServerEndpoint.self, from: data) else {
+            BackgroundRefreshDiagnostics.recordCheck(success: false)
+            return false
+        }
         let client = CodexWebSocketClient(endpoint: endpoint)
         do {
             _ = try await client.connect()
@@ -144,14 +232,22 @@ enum BackgroundCompletionMonitor {
                     "includeTurns": .bool(false)
                 ])
                 let activity = result["thread"]?["status"]?["type"]?.stringValue
-                if activity != "active", BackgroundWatchStore.remove(threadID: item.id) {
-                    try? await NotificationManager.shared.notifyCompletion(title: item.title, threadID: item.id)
+                if activity != "active", let completed = BackgroundWatchStore.take(threadID: item.id) {
+                    do {
+                        try await NotificationManager.shared.notifyCompletion(title: completed.title, threadID: completed.id)
+                    } catch {
+                        BackgroundWatchStore.add(threadID: completed.id, title: completed.title)
+                        throw error
+                    }
                 }
             }
             await client.disconnect()
+            BackgroundRefreshDiagnostics.recordCheck(success: true)
+            await MainActor.run { AppDelegate.backgroundWatchStateChanged() }
             return true
         } catch {
             await client.disconnect()
+            BackgroundRefreshDiagnostics.recordCheck(success: false)
             return false
         }
     }

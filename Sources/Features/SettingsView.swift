@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage(StorageKey.appearance) private var appearanceValue = AppAppearance.system.rawValue
     @State private var notificationState: NotificationAuthorizationState = .notDetermined
     @State private var notificationFeedback: String?
+    @State private var backgroundSnapshot = BackgroundRefreshDiagnostics.snapshot()
 
     var body: some View {
         ZStack {
@@ -24,6 +25,12 @@ struct SettingsView: View {
                 }
                 Section("后台提醒") {
                     LabeledContent("通知权限", value: notificationState.title)
+                    LabeledContent("等待提醒", value: "\(backgroundSnapshot.watchedCount) 个任务")
+                    if let checkedAt = backgroundSnapshot.checkedAt {
+                        LabeledContent("最近后台检查") {
+                            Text(checkedAt, format: .relative(presentation: .named))
+                        }
+                    }
                     notificationAction
                     if let notificationFeedback {
                         Text(notificationFeedback)
@@ -33,6 +40,11 @@ struct SettingsView: View {
                     Text("iOS 会按系统调度在后台检查状态；App 保持运行或被系统唤醒时可即时提醒。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    if let errorMessage = backgroundSnapshot.errorMessage {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                    }
                 }
                 Section("外观") {
                     Picker("显示模式", selection: $appearanceValue) {
@@ -53,7 +65,10 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
         }
         .navigationTitle("设置")
-        .task { await refreshNotificationState() }
+        .task {
+            await refreshNotificationState()
+            backgroundSnapshot = BackgroundRefreshDiagnostics.snapshot()
+        }
     }
 
     @ViewBuilder
@@ -81,6 +96,7 @@ struct SettingsView: View {
                         notificationFeedback = "测试提醒失败：\(error.localizedDescription)"
                     }
                     await refreshNotificationState()
+                    backgroundSnapshot = BackgroundRefreshDiagnostics.snapshot()
                 }
             }
         }

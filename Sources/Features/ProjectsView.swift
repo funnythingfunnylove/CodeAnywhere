@@ -13,10 +13,7 @@ struct ProjectsView: View {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: DS.spacingSM)], spacing: DS.spacingSM) {
                         ForEach(store.projects) { project in
-                            NavigationLink(value: project) {
-                                ProjectCard(project: project)
-                            }
-                            .buttonStyle(.plain)
+                            ProjectRow(project: project)
                         }
                     }
                     .padding(.horizontal, 12)
@@ -41,45 +38,70 @@ struct ProjectsView: View {
     }
 }
 
-private struct ProjectCard: View {
+private struct ProjectRow: View {
+    @EnvironmentObject private var store: RemoteCodexStore
     let project: ProjectSummary
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "folder.fill")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 36, height: 36)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(project.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(project.path)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                HStack(spacing: 6) {
-                    Label("\(project.threadCount) 个对话", systemImage: "bubble.left.and.bubble.right")
-                    if let date = project.updatedAt {
-                        Text("·")
-                        Text(date, format: .relative(presentation: .named))
+            NavigationLink(value: project) {
+                HStack(spacing: 10) {
+                    Image(systemName: "folder.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 36, height: 36)
+                        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 5) {
+                            Text(project.name)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            if project.isPinned {
+                                Image(systemName: "pin.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        Text(project.path)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        HStack(spacing: 6) {
+                            Label("\(project.threadCount) 个对话", systemImage: "bubble.left.and.bubble.right")
+                            if let date = project.updatedAt {
+                                Text("·")
+                                Text(date, format: .relative(presentation: .named))
+                            }
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                     }
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.tertiary)
                 }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
             }
-            Spacer(minLength: 4)
-            Image(systemName: "chevron.right")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.tertiary)
+            .buttonStyle(.plain)
+            Button {
+                store.toggleProjectPin(project.path)
+            } label: {
+                Image(systemName: project.isPinned ? "pin.slash" : "pin")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(project.isPinned ? Color.accentColor : Color.secondary)
+            .accessibilityLabel(project.isPinned ? "取消置顶项目" : "置顶项目")
+            .accessibilityHint(project.name)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
         .contentCard(radius: 12)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
     }
 }
 

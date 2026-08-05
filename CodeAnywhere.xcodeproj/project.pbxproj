@@ -11,26 +11,47 @@
 		15255E3F69A4AFAA16B4AC44 /* AppIcon.svg in Resources */ = {isa = PBXBuildFile; fileRef = 24958086858F22298FBC6E33 /* AppIcon.svg */; };
 		1A8ED0E0B406A162D1DCC8D8 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F55DAD11A195B14C816EDC05 /* PrivacyInfo.xcprivacy */; };
 		1B90DFAB351070CBE72DF34F /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC9B6F6031900E1D1B3D11BA /* JSONValue.swift */; };
+		210B242158424DA7806BCEEA /* ServerProcessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B8DCD4AF7005B0D477016F5 /* ServerProcessController.swift */; };
+		2780570A21D1B053FDF6D584 /* ProcessLogRedactorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1339A7292A8682CA8CB5E2DD /* ProcessLogRedactorTests.swift */; };
 		2D1997E9626ED7D54BFAD74C /* MessageFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE15CD4F08B5322C9A1252DE /* MessageFormatting.swift */; };
 		2D75BD689504A937D7E705BC /* CodexClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B915C0F8C4E05E4D369EB9AF /* CodexClient.swift */; };
 		3C85297DDC2DF3A19EA6C637 /* ProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A0A2D39375F8A681CD6F2B /* ProjectsView.swift */; };
+		43B4E9A2088A2B751FF8C6E4 /* ServerProcessControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B79557726CCA887697B571D9 /* ServerProcessControllerTests.swift */; };
+		4B3447CBAF752056EF2AAE64 /* BarkContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5D4B1691372A07AD163698A /* BarkContractTests.swift */; };
+		54E3265CACFDB215F61F2BEA /* KeychainDeviceKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0409E3B52F30B2EFD7459BCA /* KeychainDeviceKeyStore.swift */; };
 		5769480F9745DAC6E6A65A83 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF6854B70281CCC68E43221 /* Models.swift */; };
 		6427F47898A77FC253B640E8 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 832CDA649626AE698083757A /* RootView.swift */; };
+		650F066A9B3EE11303E56E98 /* MacJSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEAFF901967BCB2AEB32399 /* MacJSONValue.swift */; };
 		69524C4C1B5CD76452444181 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C51E80630D56BD8960B2F3D /* AppDelegate.swift */; };
 		69741036E2D3C629CB24D653 /* ThreadTurnStarter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5393E3D94EC232DF9C6E70DD /* ThreadTurnStarter.swift */; };
+		6E7C92B059A150D5EAFEF502 /* CompletionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785C56F8246F566EFFA53A46 /* CompletionStateTests.swift */; };
 		73516C9472231D5200462884 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356611AE2C24C5912EBEAC8A /* SessionsView.swift */; };
 		76258289800CB73128BB756A /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CED5697F983BB9F84350F39 /* DesignSystem.swift */; };
+		779DD53D1665D1E8E139F941 /* CompletionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C3591CAC09A2DB76F9C55EF /* CompletionState.swift */; };
+		788BF1AFC05C201CF922D4EF /* CompletionMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3ADA2792DCE8CE66F2DD006 /* CompletionMonitor.swift */; };
 		854E53E722A7DA80DBD15ED4 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 252AABC9F5D8398AB5B4196A /* ChatView.swift */; };
+		85B348A8B30D9D7528FBF04B /* CodeAnywhereMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3397D7739D2656391A4A3547 /* CodeAnywhereMacApp.swift */; };
 		88489BD01B0AFAA02D2C2BE1 /* NewConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF8CE282945C656F15522A01 /* NewConversationView.swift */; };
 		8E8E0F495FBF510511E4D182 /* RemoteCodexStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753F3719129065A80EBEFB56 /* RemoteCodexStore.swift */; };
+		93BD43DD1B80A5D478A9DDB7 /* BarkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 888A188F360741D1BE79120E /* BarkClient.swift */; };
 		A876ACF8053465CD2B2F958B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3BBFA5C1BED660738454D2 /* SettingsView.swift */; };
+		C3A3611325E395C401FF4436 /* MacAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4999AC0D2BCF5D19BB864232 /* MacAppModel.swift */; };
 		E06EDC3F6D6431E51E11056B /* CodeAnywhereApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74356C8BAC7F47EB583393C8 /* CodeAnywhereApp.swift */; };
+		E4D652B28B3DA2F62A471540 /* MacCodexClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2BE4BEC4ABF35A2FE810AA /* MacCodexClient.swift */; };
 		E55AAD89276F93E50DF0214D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8885F83B1F01D570EE05618E /* Assets.xcassets */; };
 		E6A5B491A72F4C93A9B6B41A /* AppearancePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF64C31330F25D9F1559829 /* AppearancePreference.swift */; };
 		E8A3FA520C1012AFA9C7259D /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7BAAC0F8E8EE143FA794B4 /* ModelsTests.swift */; };
+		F447B744AEB4522E555A9EA7 /* MacDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 597229C873BB1783F75F66EC /* MacDashboardView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		5F6D14E256469E66E8B8F984 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D6FB1E98692E8BB938EBAC4A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2673D2A38CD0D71BDF647764;
+			remoteInfo = CodeAnywhereMac;
+		};
 		98120B85870F2D437097F0BD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = D6FB1E98692E8BB938EBAC4A /* Project object */;
@@ -41,33 +62,71 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0409E3B52F30B2EFD7459BCA /* KeychainDeviceKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainDeviceKeyStore.swift; sourceTree = "<group>"; };
 		10A0A2D39375F8A681CD6F2B /* ProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsView.swift; sourceTree = "<group>"; };
+		1339A7292A8682CA8CB5E2DD /* ProcessLogRedactorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessLogRedactorTests.swift; sourceTree = "<group>"; };
 		172D93448F2AD0D7D9F2A65F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		19EB5702FD7E4EDA53A08795 /* CodeAnywhereMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodeAnywhereMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1B8DCD4AF7005B0D477016F5 /* ServerProcessController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessController.swift; sourceTree = "<group>"; };
 		24958086858F22298FBC6E33 /* AppIcon.svg */ = {isa = PBXFileReference; path = AppIcon.svg; sourceTree = "<group>"; };
 		252AABC9F5D8398AB5B4196A /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		2C3591CAC09A2DB76F9C55EF /* CompletionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionState.swift; sourceTree = "<group>"; };
 		2CED5697F983BB9F84350F39 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		2D7BAAC0F8E8EE143FA794B4 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
 		3294FAE5E0993004F6D5C2DE /* CodeAnywhere.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CodeAnywhere.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3397D7739D2656391A4A3547 /* CodeAnywhereMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeAnywhereMacApp.swift; sourceTree = "<group>"; };
 		356611AE2C24C5912EBEAC8A /* SessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsView.swift; sourceTree = "<group>"; };
 		4637E0D85D9C5B15074DFF38 /* CodeAnywhereTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CodeAnywhereTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4999AC0D2BCF5D19BB864232 /* MacAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAppModel.swift; sourceTree = "<group>"; };
 		4A3BBFA5C1BED660738454D2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		4D2BE4BEC4ABF35A2FE810AA /* MacCodexClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCodexClient.swift; sourceTree = "<group>"; };
 		5393E3D94EC232DF9C6E70DD /* ThreadTurnStarter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadTurnStarter.swift; sourceTree = "<group>"; };
+		597229C873BB1783F75F66EC /* MacDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDashboardView.swift; sourceTree = "<group>"; };
+		6875635982EDAD4F8CEC4B25 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6C51E80630D56BD8960B2F3D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		7316E2DABF84742F0BF812DE /* CodeAnywhereMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodeAnywhereMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		74356C8BAC7F47EB583393C8 /* CodeAnywhereApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeAnywhereApp.swift; sourceTree = "<group>"; };
 		753F3719129065A80EBEFB56 /* RemoteCodexStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteCodexStore.swift; sourceTree = "<group>"; };
 		75CE409448A13D8402E82EEF /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
+		785C56F8246F566EFFA53A46 /* CompletionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionStateTests.swift; sourceTree = "<group>"; };
 		832CDA649626AE698083757A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		8885F83B1F01D570EE05618E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		888A188F360741D1BE79120E /* BarkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarkClient.swift; sourceTree = "<group>"; };
 		9FF64C31330F25D9F1559829 /* AppearancePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePreference.swift; sourceTree = "<group>"; };
 		ADF6854B70281CCC68E43221 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		AE15CD4F08B5322C9A1252DE /* MessageFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageFormatting.swift; sourceTree = "<group>"; };
+		B79557726CCA887697B571D9 /* ServerProcessControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessControllerTests.swift; sourceTree = "<group>"; };
 		B915C0F8C4E05E4D369EB9AF /* CodexClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexClient.swift; sourceTree = "<group>"; };
+		BBEAFF901967BCB2AEB32399 /* MacJSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacJSONValue.swift; sourceTree = "<group>"; };
+		D3ADA2792DCE8CE66F2DD006 /* CompletionMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionMonitor.swift; sourceTree = "<group>"; };
+		D5D4B1691372A07AD163698A /* BarkContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarkContractTests.swift; sourceTree = "<group>"; };
 		EC9B6F6031900E1D1B3D11BA /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
 		EF8CE282945C656F15522A01 /* NewConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewConversationView.swift; sourceTree = "<group>"; };
 		F55DAD11A195B14C816EDC05 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		075453D03F664118A26F8F67 /* TestsMac */ = {
+			isa = PBXGroup;
+			children = (
+				D5D4B1691372A07AD163698A /* BarkContractTests.swift */,
+				785C56F8246F566EFFA53A46 /* CompletionStateTests.swift */,
+				1339A7292A8682CA8CB5E2DD /* ProcessLogRedactorTests.swift */,
+				B79557726CCA887697B571D9 /* ServerProcessControllerTests.swift */,
+			);
+			path = TestsMac;
+			sourceTree = "<group>";
+		};
+		0FDBBB2B487AC8C8ABCC9A4A /* SourcesMac */ = {
+			isa = PBXGroup;
+			children = (
+				DB540461E7392023B33BA7C9 /* App */,
+				3151EB2FF21B6C7DD12BB7F8 /* Core */,
+				77FB514BA76A343C940D6580 /* Features */,
+			);
+			path = SourcesMac;
+			sourceTree = "<group>";
+		};
 		12B7AC6C66FD9C1532596316 /* Core */ = {
 			isa = PBXGroup;
 			children = (
@@ -92,6 +151,20 @@
 			path = Sources;
 			sourceTree = "<group>";
 		};
+		3151EB2FF21B6C7DD12BB7F8 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				888A188F360741D1BE79120E /* BarkClient.swift */,
+				D3ADA2792DCE8CE66F2DD006 /* CompletionMonitor.swift */,
+				2C3591CAC09A2DB76F9C55EF /* CompletionState.swift */,
+				0409E3B52F30B2EFD7459BCA /* KeychainDeviceKeyStore.swift */,
+				4D2BE4BEC4ABF35A2FE810AA /* MacCodexClient.swift */,
+				BBEAFF901967BCB2AEB32399 /* MacJSONValue.swift */,
+				1B8DCD4AF7005B0D477016F5 /* ServerProcessController.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
 		410063B97E0E66CA20D2D906 /* Design */ = {
 			isa = PBXGroup;
 			children = (
@@ -111,6 +184,14 @@
 				832CDA649626AE698083757A /* RootView.swift */,
 				356611AE2C24C5912EBEAC8A /* SessionsView.swift */,
 				4A3BBFA5C1BED660738454D2 /* SettingsView.swift */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		77FB514BA76A343C940D6580 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				597229C873BB1783F75F66EC /* MacDashboardView.swift */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -139,6 +220,8 @@
 			isa = PBXGroup;
 			children = (
 				3294FAE5E0993004F6D5C2DE /* CodeAnywhere.app */,
+				7316E2DABF84742F0BF812DE /* CodeAnywhereMac.app */,
+				19EB5702FD7E4EDA53A08795 /* CodeAnywhereMacTests.xctest */,
 				4637E0D85D9C5B15074DFF38 /* CodeAnywhereTests.xctest */,
 			);
 			name = Products;
@@ -152,12 +235,24 @@
 			path = Tests;
 			sourceTree = "<group>";
 		};
+		DB540461E7392023B33BA7C9 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				3397D7739D2656391A4A3547 /* CodeAnywhereMacApp.swift */,
+				6875635982EDAD4F8CEC4B25 /* Info.plist */,
+				4999AC0D2BCF5D19BB864232 /* MacAppModel.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
 		DCB4BDE4FF07D09DB861A040 = {
 			isa = PBXGroup;
 			children = (
 				7EB1860D1706F0948310DC28 /* Resources */,
 				247F5F7B8BD70C7AC2C068D1 /* Sources */,
+				0FDBBB2B487AC8C8ABCC9A4A /* SourcesMac */,
 				A8EF937A8E5C7FB96D278765 /* Tests */,
+				075453D03F664118A26F8F67 /* TestsMac */,
 				9D57D25714A277155CF3C6B5 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -165,6 +260,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2673D2A38CD0D71BDF647764 /* CodeAnywhereMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6126B4DD5EF2C55F4ACCE2E9 /* Build configuration list for PBXNativeTarget "CodeAnywhereMac" */;
+			buildPhases = (
+				9A18BD72EC47CB6ADF93C30E /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CodeAnywhereMac;
+			packageProductDependencies = (
+			);
+			productName = CodeAnywhereMac;
+			productReference = 7316E2DABF84742F0BF812DE /* CodeAnywhereMac.app */;
+			productType = "com.apple.product-type.application";
+		};
 		404A678F8ED7484D476FC443 /* CodeAnywhereTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8881271C0B03B29FB4C9D8F9 /* Build configuration list for PBXNativeTarget "CodeAnywhereTests" */;
@@ -181,6 +293,24 @@
 			);
 			productName = CodeAnywhereTests;
 			productReference = 4637E0D85D9C5B15074DFF38 /* CodeAnywhereTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		8346A2B4B34A7B3759FB5F27 /* CodeAnywhereMacTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F9922E22A12383114CD28266 /* Build configuration list for PBXNativeTarget "CodeAnywhereMacTests" */;
+			buildPhases = (
+				12CDF99741C26D9E780DE6DF /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2EC7A5BEA716901F5A80B0B5 /* PBXTargetDependency */,
+			);
+			name = CodeAnywhereMacTests;
+			packageProductDependencies = (
+			);
+			productName = CodeAnywhereMacTests;
+			productReference = 19EB5702FD7E4EDA53A08795 /* CodeAnywhereMacTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		9B768D4085DC500F4BADB257 /* CodeAnywhere */ = {
@@ -210,7 +340,15 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					2673D2A38CD0D71BDF647764 = {
+						DevelopmentTeam = SA4L8J8X2M;
+						ProvisioningStyle = Automatic;
+					};
 					404A678F8ED7484D476FC443 = {
+						DevelopmentTeam = SA4L8J8X2M;
+						ProvisioningStyle = Automatic;
+					};
+					8346A2B4B34A7B3759FB5F27 = {
 						DevelopmentTeam = SA4L8J8X2M;
 						ProvisioningStyle = Automatic;
 					};
@@ -236,6 +374,8 @@
 			targets = (
 				9B768D4085DC500F4BADB257 /* CodeAnywhere */,
 				404A678F8ED7484D476FC443 /* CodeAnywhereTests */,
+				2673D2A38CD0D71BDF647764 /* CodeAnywhereMac */,
+				8346A2B4B34A7B3759FB5F27 /* CodeAnywhereMacTests */,
 			);
 		};
 /* End PBXProject section */
@@ -254,6 +394,34 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		12CDF99741C26D9E780DE6DF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4B3447CBAF752056EF2AAE64 /* BarkContractTests.swift in Sources */,
+				6E7C92B059A150D5EAFEF502 /* CompletionStateTests.swift in Sources */,
+				2780570A21D1B053FDF6D584 /* ProcessLogRedactorTests.swift in Sources */,
+				43B4E9A2088A2B751FF8C6E4 /* ServerProcessControllerTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9A18BD72EC47CB6ADF93C30E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				93BD43DD1B80A5D478A9DDB7 /* BarkClient.swift in Sources */,
+				85B348A8B30D9D7528FBF04B /* CodeAnywhereMacApp.swift in Sources */,
+				788BF1AFC05C201CF922D4EF /* CompletionMonitor.swift in Sources */,
+				779DD53D1665D1E8E139F941 /* CompletionState.swift in Sources */,
+				54E3265CACFDB215F61F2BEA /* KeychainDeviceKeyStore.swift in Sources */,
+				C3A3611325E395C401FF4436 /* MacAppModel.swift in Sources */,
+				E4D652B28B3DA2F62A471540 /* MacCodexClient.swift in Sources */,
+				F447B744AEB4522E555A9EA7 /* MacDashboardView.swift in Sources */,
+				650F066A9B3EE11303E56E98 /* MacJSONValue.swift in Sources */,
+				210B242158424DA7806BCEEA /* ServerProcessController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AB8DEBBBCDDC1A80FCBF2670 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -289,6 +457,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		2EC7A5BEA716901F5A80B0B5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2673D2A38CD0D71BDF647764 /* CodeAnywhereMac */;
+			targetProxy = 5F6D14E256469E66E8B8F984 /* PBXContainerItemProxy */;
+		};
 		C842F9C7D08A68AEAE34CD2A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 9B768D4085DC500F4BADB257 /* CodeAnywhere */;
@@ -383,15 +556,50 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.1.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = targeted;
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		49076D2DE8F71F0732D27B97 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = me.fenglei.codeanywhere.mac.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CodeAnywhere Mac.app/Contents/MacOS/CodeAnywhere Mac";
+			};
+			name = Debug;
+		};
+		8D0A73C8BFEEC1DF74119B8F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = me.fenglei.codeanywhere.mac.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CodeAnywhere Mac.app/Contents/MacOS/CodeAnywhere Mac";
 			};
 			name = Release;
 		};
@@ -451,12 +659,11 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.1.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = targeted;
@@ -500,9 +707,58 @@
 			};
 			name = Release;
 		};
+		D889E0C6BB6D8CC038336AD4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = SourcesMac/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = me.fenglei.codeanywhere.mac;
+				PRODUCT_MODULE_NAME = CodeAnywhereMac;
+				PRODUCT_NAME = "CodeAnywhere Mac";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		F9C6B8120FF441FA3592A686 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = SourcesMac/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = me.fenglei.codeanywhere.mac;
+				PRODUCT_MODULE_NAME = CodeAnywhereMac;
+				PRODUCT_NAME = "CodeAnywhere Mac";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		6126B4DD5EF2C55F4ACCE2E9 /* Build configuration list for PBXNativeTarget "CodeAnywhereMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F9C6B8120FF441FA3592A686 /* Debug */,
+				D889E0C6BB6D8CC038336AD4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		7B2DCFE41928FDCC262F1173 /* Build configuration list for PBXProject "CodeAnywhere" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -526,6 +782,15 @@
 			buildConfigurations = (
 				03F77DBDC1001CE03B092D53 /* Debug */,
 				B84EC39C499263AB1F8F959E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F9922E22A12383114CD28266 /* Build configuration list for PBXNativeTarget "CodeAnywhereMacTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				49076D2DE8F71F0732D27B97 /* Debug */,
+				8D0A73C8BFEEC1DF74119B8F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
