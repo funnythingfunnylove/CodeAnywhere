@@ -232,6 +232,28 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(turnStartParams["effort"]?.stringValue, "high")
     }
 
+    @MainActor
+    func testAllOpenAIReasoningLevelsAreSentUnchanged() async throws {
+        for level in OpenAIReasoningLevel.allCases {
+            let client = RecordingCodexClient()
+            let suiteName = "CodeAnywhereTests.Reasoning.\(level.rawValue).\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+            defer { defaults.removePersistentDomain(forName: suiteName) }
+            let store = RemoteCodexStore(client: client, defaults: defaults)
+
+            try await store.send(
+                prompt: "测试思考级别",
+                threadID: "thread-\(level.rawValue)",
+                modelID: "gpt-5",
+                effort: level.rawValue
+            )
+
+            let recordedParams = await client.recordedTurnStartParams()
+            let params = try XCTUnwrap(recordedParams)
+            XCTAssertEqual(params["effort"]?.stringValue, level.rawValue)
+        }
+    }
+
     func testLiveCodexAppServerHandshakeAndCatalogWhenAvailable() async throws {
         let client = CodexWebSocketClient(endpoint: ServerEndpoint(host: "127.0.0.1", port: 4500))
         let userAgent: String
@@ -519,6 +541,47 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(AppAppearance.dark.preferredColorScheme, .dark)
     }
 
+    func testChatScrollPolicyKeepsLatestMessageVisibleOnEntryAndKeyboardFocus() {
+        XCTAssertEqual(
+            ChatScrollPolicy.request(for: .initialAppearance),
+            ChatScrollRequest(animated: false, waitsForKeyboard: false)
+        )
+        XCTAssertEqual(
+            ChatScrollPolicy.request(for: .composerFocusChanged(true)),
+            ChatScrollRequest(animated: true, waitsForKeyboard: true)
+        )
+        XCTAssertEqual(
+            ChatScrollPolicy.request(for: .keyboardFrameChanged),
+            ChatScrollRequest(animated: true, waitsForKeyboard: false)
+        )
+        XCTAssertNil(ChatScrollPolicy.request(for: .composerFocusChanged(false)))
+    }
+
+    func testChatScrollPolicyFollowsNewAndStreamingMessages() {
+        XCTAssertEqual(
+            ChatScrollPolicy.request(for: .messagesChanged),
+            ChatScrollRequest(animated: true, waitsForKeyboard: false)
+        )
+        XCTAssertEqual(
+            ChatScrollPolicy.request(for: .streamingChanged),
+            ChatScrollRequest(animated: false, waitsForKeyboard: false)
+        )
+    }
+
+    func testOpenAIReasoningLevelsHaveFixedOrderTitlesAndIcons() {
+        XCTAssertEqual(
+            OpenAIReasoningLevel.allCases.map(\.rawValue),
+            ["low", "medium", "high", "xhigh", "max", "ultra"]
+        )
+        XCTAssertEqual(
+            OpenAIReasoningLevel.allCases.map(\.title),
+            ["Light", "Medium", "High", "Extra High", "Max", "Ultra"]
+        )
+        XCTAssertTrue(OpenAIReasoningLevel.allCases.allSatisfy { !$0.systemImage.isEmpty })
+        XCTAssertEqual(OpenAIReasoningLevel.resolve("Light"), .light)
+        XCTAssertEqual(OpenAIReasoningLevel.resolve("Extra High"), .extraHigh)
+    }
+
     func testModelUsesServerReasoningOptions() throws {
         let json: JSONValue = .object([
             "id": .string("gpt-5"),
@@ -582,9 +645,9 @@ final class ModelsTests: XCTestCase {
             NewConversationDefaults.resolve(
                 models: models,
                 preferredModelID: "fast-model",
-                preferredReasoningEffort: "unsupported"
+                preferredReasoningEffort: "ultra"
             ),
-            NewConversationDefaults(modelID: "fast-model", reasoningEffort: "max")
+            NewConversationDefaults(modelID: "fast-model", reasoningEffort: "ultra")
         )
         XCTAssertEqual(ReasoningOption(id: "max", description: "").displayName, "极致")
     }

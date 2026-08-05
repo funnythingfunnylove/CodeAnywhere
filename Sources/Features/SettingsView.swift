@@ -4,7 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject private var store: RemoteCodexStore
     @AppStorage(StorageKey.appearance) private var appearanceValue = AppAppearance.system.rawValue
     @AppStorage(StorageKey.defaultModel) private var defaultModelID = ""
-    @AppStorage(StorageKey.defaultReasoningEffort) private var defaultReasoningEffort = ""
+    @AppStorage(StorageKey.defaultReasoningEffort) private var defaultReasoningEffort = OpenAIReasoningLevel.medium.rawValue
 
     private var selectedDefaultModel: CodexModel? {
         NewConversationDefaults.preferredModel(
@@ -46,21 +46,15 @@ struct SettingsView: View {
                             }
                         }
 
-                        if let selectedDefaultModel, !selectedDefaultModel.reasoningOptions.isEmpty {
+                        if selectedDefaultModel != nil {
                             Picker("默认思考级别", selection: $defaultReasoningEffort) {
-                                Text(recommendedEffortLabel(for: selectedDefaultModel)).tag("")
-                                ForEach(selectedDefaultModel.reasoningOptions) { option in
-                                    Text(option.displayName).tag(option.id)
+                                ForEach(OpenAIReasoningLevel.allCases) { level in
+                                    Label(level.title, systemImage: level.systemImage)
+                                        .tag(level.rawValue)
                                 }
                             }
-
-                            if let description = selectedEffortDescription, !description.isEmpty {
-                                Text(description)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
                         } else {
-                            LabeledContent("默认思考级别", value: "由模型决定")
+                            LabeledContent("默认思考级别", value: OpenAIReasoningLevel.medium.title)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -93,27 +87,8 @@ struct SettingsView: View {
             normalizeConversationDefaults()
         }
         .onChange(of: defaultModelID) { _, _ in
-            defaultReasoningEffort = ""
+            normalizeReasoningEffort()
         }
-    }
-
-    private var selectedEffortDescription: String? {
-        guard !defaultReasoningEffort.isEmpty else {
-            guard let model = selectedDefaultModel,
-                  let effort = NewConversationDefaults.recommendedReasoningEffort(for: model) else { return nil }
-            return model.reasoningOptions.first { $0.id == effort }?.description
-        }
-        return selectedDefaultModel?.reasoningOptions
-            .first { $0.id == defaultReasoningEffort }?
-            .description
-    }
-
-    private func recommendedEffortLabel(for model: CodexModel) -> String {
-        guard let effort = NewConversationDefaults.recommendedReasoningEffort(for: model),
-              let option = model.reasoningOptions.first(where: { $0.id == effort }) else {
-            return "模型推荐"
-        }
-        return "模型推荐（\(option.displayName)）"
     }
 
     private func normalizeConversationDefaults() {
@@ -123,12 +98,12 @@ struct SettingsView: View {
             defaultModelID = ""
             return
         }
-        guard let model = selectedDefaultModel else { return }
-        guard defaultReasoningEffort.isEmpty
-                || model.reasoningOptions.contains(where: { $0.id == defaultReasoningEffort }) else {
-            defaultReasoningEffort = ""
-            return
-        }
+        normalizeReasoningEffort()
+    }
+
+    private func normalizeReasoningEffort() {
+        defaultReasoningEffort = OpenAIReasoningLevel.resolve(defaultReasoningEffort)?.rawValue
+            ?? OpenAIReasoningLevel.medium.rawValue
     }
 
     private var versionText: String {

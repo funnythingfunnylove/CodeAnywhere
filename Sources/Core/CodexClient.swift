@@ -60,6 +60,7 @@ actor CodexWebSocketClient: CodexClientProtocol {
         var request = URLRequest(url: url, timeoutInterval: 12)
         request.setValue("Bearer \(ServerEndpoint.internalCapabilityToken)", forHTTPHeaderField: "Authorization")
         let task = URLSession.shared.webSocketTask(with: request)
+        task.maximumMessageSize = 32 * 1024 * 1024
         socket = task
         task.resume()
         listener = Task { await receiveLoop() }

@@ -1,6 +1,38 @@
 import SwiftUI
 import UIKit
 
+enum ChatScrollTrigger: Equatable {
+    case initialAppearance
+    case messagesChanged
+    case streamingChanged
+    case composerFocusChanged(Bool)
+    case keyboardFrameChanged
+}
+
+struct ChatScrollRequest: Equatable {
+    let animated: Bool
+    let waitsForKeyboard: Bool
+}
+
+enum ChatScrollPolicy {
+    static func request(for trigger: ChatScrollTrigger) -> ChatScrollRequest? {
+        switch trigger {
+        case .initialAppearance:
+            return ChatScrollRequest(animated: false, waitsForKeyboard: false)
+        case .messagesChanged:
+            return ChatScrollRequest(animated: true, waitsForKeyboard: false)
+        case .streamingChanged:
+            return ChatScrollRequest(animated: false, waitsForKeyboard: false)
+        case .composerFocusChanged(true):
+            return ChatScrollRequest(animated: true, waitsForKeyboard: true)
+        case .composerFocusChanged(false):
+            return nil
+        case .keyboardFrameChanged:
+            return ChatScrollRequest(animated: true, waitsForKeyboard: false)
+        }
+    }
+}
+
 struct ChatView: View {
     @EnvironmentObject private var store: RemoteCodexStore
     let thread: CodexThread
@@ -9,6 +41,10 @@ struct ChatView: View {
     @State private var selectedEffort: String?
     @State private var isSending = false
     @FocusState private var composerFocused: Bool
+    @AppStorage(StorageKey.defaultReasoningEffort) private var defaultReasoningEffort = OpenAIReasoningLevel.medium.rawValue
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let bottomID = "conversation-bottom"
 
     private var detail: ThreadDetail? { store.threadDetails[thread.id] }
     private var currentThread: CodexThread { detail?.thread ?? thread }
@@ -42,7 +78,13 @@ struct ChatView: View {
                 }
             }
         }
-        .task { await store.loadThread(thread.id) }
+        .task {
+            if selectedEffort == nil {
+                selectedEffort = OpenAIReasoningLevel.resolve(defaultReasoningEffort)?.rawValue
+                    ?? OpenAIReasoningLevel.medium.rawValue
+            }
+            await store.loadThread(thread.id)
+        }
     }
 
     private var messages: some View {
@@ -59,17 +101,27 @@ struct ChatView: View {
                                 .id(item.message.id)
                         }
                     }
-                    Color.clear.frame(height: 1).id("streaming-bottom")
+                    Color.clear.frame(height: 1).id(Self.bottomID)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
             }
+            .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
+            .onAppear {
+                scrollToBottom(using: proxy, trigger: .initialAppearance)
+            }
             .onChange(of: detail?.messages.count ?? 0) { _, _ in
-                if let id = detail?.messages.last?.id { withAnimation(.smooth) { proxy.scrollTo(id, anchor: .bottom) } }
+                scrollToBottom(using: proxy, trigger: .messagesChanged)
             }
             .onChange(of: store.streamingItems[thread.id]) { _, _ in
-                proxy.scrollTo("streaming-bottom", anchor: .bottom)
+                scrollToBottom(using: proxy, trigger: .streamingChanged)
+            }
+            .onChange(of: composerFocused) { _, focused in
+                scrollToBottom(using: proxy, trigger: .composerFocusChanged(focused))
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidChangeFrameNotification)) { _ in
+                scrollToBottom(using: proxy, trigger: .keyboardFrameChanged)
             }
         }
     }
@@ -135,22 +187,21 @@ struct ChatView: View {
         .accessibilityValue(modelSelectionLabel)
         .accessibilityHint("选择下一条消息使用的模型")
         .onChange(of: selectedModelID) { _, _ in
-            guard let selectedEffort,
-                  !reasoningOptions.contains(where: { $0.id == selectedEffort }) else { return }
-            self.selectedEffort = nil
+            selectedEffort = OpenAIReasoningLevel.resolve(selectedEffort)?.rawValue
+                ?? OpenAIReasoningLevel.medium.rawValue
         }
     }
 
     private var reasoningMenu: some View {
         Menu {
-            Picker("思索程度", selection: $selectedEffort) {
-                Text("沿用当前思索程度").tag(String?.none)
-                ForEach(reasoningOptions) { option in
-                    Text(reasoningOptionLabel(option)).tag(option.id as String?)
+            Picker("思考级别", selection: $selectedEffort) {
+                ForEach(OpenAIReasoningLevel.allCases) { level in
+                    Label(level.title, systemImage: level.systemImage)
+                        .tag(level.rawValue as String?)
                 }
             }
         } label: {
-            Label(reasoningSelectionLabel, systemImage: "brain.head.profile")
+            Label(reasoningSelectionLabel, systemImage: selectedReasoningLevel.systemImage)
                 .font(.caption2.weight(.semibold))
                 .lineLimit(1)
                 .frame(minHeight: 44)
@@ -158,9 +209,9 @@ struct ChatView: View {
                 .background(Color(.secondarySystemBackground), in: Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("思索程度")
+        .accessibilityLabel("思考级别")
         .accessibilityValue(reasoningSelectionLabel)
-        .accessibilityHint("选择下一条消息使用的思索程度")
+        .accessibilityHint("选择下一条消息使用的思考级别")
     }
 
     private var selectedModel: CodexModel? {
@@ -168,25 +219,33 @@ struct ChatView: View {
         return store.models.first { $0.model == selectedModelID }
     }
 
-    private var reasoningOptions: [ReasoningOption] {
-        if let selectedModel { return selectedModel.reasoningOptions }
-        var seen = Set<String>()
-        return store.models
-            .flatMap(\.reasoningOptions)
-            .filter { seen.insert($0.id).inserted }
-    }
-
     private var modelSelectionLabel: String {
         selectedModel?.displayName ?? "当前模型"
     }
 
     private var reasoningSelectionLabel: String {
-        guard let selectedEffort else { return "当前思索" }
-        return reasoningOptions.first(where: { $0.id == selectedEffort })?.displayName ?? selectedEffort
+        selectedReasoningLevel.title
     }
 
-    private func reasoningOptionLabel(_ option: ReasoningOption) -> String {
-        option.description.isEmpty ? option.displayName : "\(option.displayName) · \(option.description)"
+    private var selectedReasoningLevel: OpenAIReasoningLevel {
+        OpenAIReasoningLevel.resolve(selectedEffort) ?? .medium
+    }
+
+    private func scrollToBottom(using proxy: ScrollViewProxy, trigger: ChatScrollTrigger) {
+        guard let request = ChatScrollPolicy.request(for: trigger) else { return }
+        Task { @MainActor in
+            await Task.yield()
+            if request.waitsForKeyboard {
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            if request.animated && !reduceMotion {
+                withAnimation(.smooth) {
+                    proxy.scrollTo(Self.bottomID, anchor: .bottom)
+                }
+            } else {
+                proxy.scrollTo(Self.bottomID, anchor: .bottom)
+            }
+        }
     }
 
     private func send() {

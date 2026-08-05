@@ -21,8 +21,8 @@ struct NewConversationView: View {
         store.models.first { $0.model == selectedModelID }
     }
 
-    private var selectedEffortOption: ReasoningOption? {
-        selectedModel?.reasoningOptions.first { $0.id == selectedEffort }
+    private var selectedReasoningLevel: OpenAIReasoningLevel {
+        OpenAIReasoningLevel.resolve(selectedEffort) ?? .medium
     }
 
     var body: some View {
@@ -166,45 +166,34 @@ struct NewConversationView: View {
 
             Divider()
 
-            if let selectedModel, !selectedModel.reasoningOptions.isEmpty {
+            if selectedModel != nil {
                 Menu {
-                    ForEach(selectedModel.reasoningOptions) { option in
-                        Button {
-                            selectedEffort = option.id
-                        } label: {
-                            if selectedEffort == option.id {
-                                Label(option.displayName, systemImage: "checkmark")
-                            } else {
-                                Text(option.displayName)
-                            }
+                    Picker("思考级别", selection: $selectedEffort) {
+                        ForEach(OpenAIReasoningLevel.allCases) { level in
+                            Label(level.title, systemImage: level.systemImage)
+                                .tag(level.rawValue)
                         }
                     }
                 } label: {
                     ConversationSelectionRow(
                         title: "思考级别",
-                        value: selectedEffortOption?.displayName ?? "由模型决定",
-                        systemImage: "brain.head.profile"
+                        value: selectedReasoningLevel.title,
+                        systemImage: selectedReasoningLevel.systemImage
                     )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("思考级别")
-                .accessibilityValue(selectedEffortOption?.displayName ?? "由模型决定")
+                .accessibilityValue(selectedReasoningLevel.title)
             } else {
                 ConversationSelectionRow(
                     title: "思考级别",
-                    value: "由模型决定",
+                    value: OpenAIReasoningLevel.medium.title,
                     systemImage: "brain.head.profile",
                     showsDisclosure: false
                 )
                 .foregroundStyle(.secondary)
             }
 
-            if let description = selectedEffortOption?.description, !description.isEmpty {
-                Text(description)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 
@@ -294,10 +283,9 @@ struct NewConversationView: View {
             reconcileModelSelection()
             return
         }
-        if !selectedEffort.isEmpty,
-           !model.reasoningOptions.contains(where: { $0.id == selectedEffort }) {
-            selectedEffort = NewConversationDefaults.recommendedReasoningEffort(for: model) ?? ""
-        }
+        selectedEffort = OpenAIReasoningLevel.resolve(selectedEffort)?.rawValue
+            ?? NewConversationDefaults.recommendedReasoningEffort(for: model)
+            ?? OpenAIReasoningLevel.medium.rawValue
     }
 
     private func select(_ model: CodexModel) {

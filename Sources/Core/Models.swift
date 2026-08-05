@@ -50,6 +50,52 @@ struct ReasoningOption: Identifiable, Hashable, Sendable {
     }
 }
 
+enum OpenAIReasoningLevel: String, CaseIterable, Identifiable, Sendable {
+    case light = "low"
+    case medium
+    case high
+    case extraHigh = "xhigh"
+    case max
+    case ultra
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .light: return "Light"
+        case .medium: return "Medium"
+        case .high: return "High"
+        case .extraHigh: return "Extra High"
+        case .max: return "Max"
+        case .ultra: return "Ultra"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .light: return "leaf"
+        case .medium: return "circle.lefthalf.filled"
+        case .high: return "brain.head.profile"
+        case .extraHigh: return "bolt"
+        case .max: return "flame"
+        case .ultra: return "sparkles"
+        }
+    }
+
+    static func resolve(_ value: String?) -> OpenAIReasoningLevel? {
+        let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        switch normalized {
+        case "light", "low": return .light
+        case "medium": return .medium
+        case "high": return .high
+        case "extra high", "extra_high", "extrahigh", "xhigh": return .extraHigh
+        case "max": return .max
+        case "ultra": return .ultra
+        default: return nil
+        }
+    }
+}
+
 struct CodexModel: Identifiable, Hashable, Sendable {
     let id: String
     let model: String
@@ -89,11 +135,10 @@ struct NewConversationDefaults: Equatable, Sendable {
             return nil
         }
 
-        let preferredEffort = preferredReasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let supportedEffort = model.reasoningOptions.first { $0.id == preferredEffort }?.id
+        let preferredEffort = OpenAIReasoningLevel.resolve(preferredReasoningEffort)?.rawValue
         return NewConversationDefaults(
             modelID: model.model,
-            reasoningEffort: supportedEffort ?? recommendedReasoningEffort(for: model)
+            reasoningEffort: preferredEffort ?? recommendedReasoningEffort(for: model)
         )
     }
 
@@ -108,8 +153,8 @@ struct NewConversationDefaults: Equatable, Sendable {
     }
 
     static func recommendedReasoningEffort(for model: CodexModel) -> String? {
-        model.reasoningOptions.first { $0.id == model.defaultReasoningEffort }?.id
-            ?? model.reasoningOptions.first?.id
+        OpenAIReasoningLevel.resolve(model.defaultReasoningEffort)?.rawValue
+            ?? OpenAIReasoningLevel.medium.rawValue
     }
 }
 
