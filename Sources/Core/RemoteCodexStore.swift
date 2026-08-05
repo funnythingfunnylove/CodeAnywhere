@@ -1,6 +1,4 @@
-import BackgroundTasks
 import Foundation
-import UserNotifications
 
 @MainActor
 final class RemoteCodexStore: ObservableObject {
@@ -21,28 +19,21 @@ final class RemoteCodexStore: ObservableObject {
     private var isConnecting = false
     private var threadRefreshGeneration = 0
     private var notificationTask: Task<Void, Never>?
-    private var notificationOpenTask: Task<Void, Never>?
     private let remoteFileCache = NSCache<NSString, NSData>()
 
     init(client: (any CodexClientProtocol)? = nil, defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        LegacyIOSReminderState.clear(defaults: defaults)
         endpoint = Self.loadEndpoint(from: defaults)
         self.client = client
         remoteFileCache.totalCostLimit = 64 * 1_024 * 1_024
         savedProjectPaths = defaults.stringArray(forKey: StorageKey.projects) ?? []
         pinnedProjectPaths = Set(defaults.stringArray(forKey: StorageKey.pinnedProjects) ?? [])
         requestedThreadID = defaults.string(forKey: StorageKey.pendingThreadID)
-        notificationOpenTask = Task { [weak self] in
-            for await notification in NotificationCenter.default.notifications(named: .openCodexThread) {
-                guard let self, let threadID = notification.object as? String else { continue }
-                await self.requestOpenThread(threadID)
-            }
-        }
     }
 
     deinit {
         notificationTask?.cancel()
-        notificationOpenTask?.cancel()
     }
 
     var projects: [ProjectSummary] {
@@ -105,7 +96,6 @@ final class RemoteCodexStore: ObservableObject {
             let server = try await client.connect()
             connectionState = .connected(server: server)
             startListening(to: client)
-            _ = await NotificationManager.shared.requestAuthorization()
             async let threadRefresh: Void = refreshThreads()
             async let modelRefresh: Void = refreshModels()
             _ = await (threadRefresh, modelRefresh)
@@ -224,24 +214,12 @@ final class RemoteCodexStore: ObservableObject {
         if let effort, !effort.isEmpty { params["effort"] = .string(effort) }
         let needsResume = !activeThreadIDs.contains(threadID)
         streamingItems[threadID] = nil
-        BackgroundWatchStore.add(
+        try await ThreadTurnStarter.start(
             threadID: threadID,
-            title: threads.first(where: { $0.id == threadID })?.title ?? "Codex 对话",
-            defaults: defaults
-        )
-        notifyBackgroundWatchStateChanged()
-        do {
-            try await ThreadTurnStarter.start(
-                threadID: threadID,
-                params: params,
-                resumeThread: needsResume
-            ) { method, params in
-                try await client.call(method: method, params: params)
-            }
-        } catch {
-            BackgroundWatchStore.remove(threadID: threadID, defaults: defaults)
-            notifyBackgroundWatchStateChanged()
-            throw error
+            params: params,
+            resumeThread: needsResume
+        ) { method, params in
+            try await client.call(method: method, params: params)
         }
         activeThreadIDs.insert(threadID)
         await loadThread(threadID)
@@ -364,16 +342,6 @@ final class RemoteCodexStore: ObservableObject {
             }
         case "turn/completed":
             guard let threadID else { return }
-            if let watched = BackgroundWatchStore.take(threadID: threadID, defaults: defaults) {
-                do {
-                    try await NotificationManager.shared.notifyCompletion(title: watched.title, threadID: threadID)
-                    notifyBackgroundWatchStateChanged()
-                } catch {
-                    BackgroundWatchStore.add(threadID: watched.id, title: watched.title, defaults: defaults)
-                    notifyBackgroundWatchStateChanged()
-                    report(error)
-                }
-            }
             await loadThread(threadID)
             streamingItems[threadID] = nil
             await refreshThreads()
@@ -472,11 +440,6 @@ final class RemoteCodexStore: ObservableObject {
         errorMessage = error.localizedDescription
     }
 
-    private func notifyBackgroundWatchStateChanged() {
-        guard defaults === UserDefaults.standard else { return }
-        AppDelegate.backgroundWatchStateChanged()
-    }
-
     func consumeRequestedThread() {
         requestedThreadID = nil
         defaults.removeObject(forKey: StorageKey.pendingThreadID)
@@ -488,9 +451,10 @@ enum StorageKey {
     static let autoConnect = "codeanywhere.autoConnect"
     static let projects = "codeanywhere.projects"
     static let pinnedProjects = "codeanywhere.pinnedProjects"
-    static let watchedThreads = "codeanywhere.watchedThreads"
     static let pendingThreadID = "codeanywhere.pendingThreadID"
     static let appearance = "codeanywhere.appearance"
+    static let defaultModel = "codeanywhere.defaultModel"
+    static let defaultReasoningEffort = "codeanywhere.defaultReasoningEffort"
 }
 
 enum ConnectionPreferences {
@@ -507,54 +471,15 @@ enum ConnectionPreferences {
     }
 }
 
-extension Notification.Name {
-    static let openCodexThread = Notification.Name("codeanywhere.openCodexThread")
-}
+enum LegacyIOSReminderState {
+    private static let keys = [
+        "codeanywhere.watchedThreads",
+        "codeanywhere.backgroundRefreshScheduledAt",
+        "codeanywhere.backgroundRefreshCheckedAt",
+        "codeanywhere.backgroundRefreshError"
+    ]
 
-struct WatchedThread: Codable, Equatable, Sendable {
-    let id: String
-    let title: String
-}
-
-enum BackgroundWatchStore {
-    private static let lock = NSLock()
-
-    static func all(defaults: UserDefaults = .standard) -> [WatchedThread] {
-        lock.lock()
-        defer { lock.unlock() }
-        return load(defaults: defaults)
-    }
-
-    private static func load(defaults: UserDefaults) -> [WatchedThread] {
-        guard let data = defaults.data(forKey: StorageKey.watchedThreads) else { return [] }
-        return (try? JSONDecoder().decode([WatchedThread].self, from: data)) ?? []
-    }
-
-    static func add(threadID: String, title: String, defaults: UserDefaults = .standard) {
-        lock.lock()
-        defer { lock.unlock() }
-        var items = load(defaults: defaults).filter { $0.id != threadID }
-        items.append(WatchedThread(id: threadID, title: title))
-        save(items, defaults: defaults)
-    }
-
-    @discardableResult
-    static func remove(threadID: String, defaults: UserDefaults = .standard) -> Bool {
-        take(threadID: threadID, defaults: defaults) != nil
-    }
-
-    @discardableResult
-    static func take(threadID: String, defaults: UserDefaults = .standard) -> WatchedThread? {
-        lock.lock()
-        defer { lock.unlock() }
-        let items = load(defaults: defaults)
-        guard let item = items.first(where: { $0.id == threadID }) else { return nil }
-        let filtered = items.filter { $0.id != threadID }
-        save(filtered, defaults: defaults)
-        return item
-    }
-
-    private static func save(_ items: [WatchedThread], defaults: UserDefaults) {
-        defaults.set(try? JSONEncoder().encode(items), forKey: StorageKey.watchedThreads)
+    static func clear(defaults: UserDefaults = .standard) {
+        keys.forEach { defaults.removeObject(forKey: $0) }
     }
 }

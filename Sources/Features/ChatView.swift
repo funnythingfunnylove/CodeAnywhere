@@ -14,13 +14,14 @@ struct ChatView: View {
     private var currentThread: CodexThread { detail?.thread ?? thread }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             AmbientBackground()
             messages
-                .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 108) }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             composer
                 .padding(.horizontal, 10)
-                .padding(.bottom, 6)
+                .padding(.vertical, 6)
         }
         .navigationTitle(currentThread.projectName)
         .navigationBarTitleDisplayMode(.inline)
@@ -76,28 +77,14 @@ struct ChatView: View {
     private var composer: some View {
         VStack(spacing: 6) {
             HStack(spacing: 6) {
-                Menu {
-                    Button("沿用当前模型") { selectedModelID = nil; selectedEffort = nil }
-                    ForEach(store.models) { model in
-                        Menu(model.displayName) {
-                            ForEach(model.reasoningOptions) { effort in
-                                Button("\(effort.displayName) · \(effort.description)") {
-                                    selectedModelID = model.model
-                                    selectedEffort = effort.id
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    Label(selectionLabel, systemImage: "brain.head.profile")
-                        .font(.caption2.weight(.semibold))
-                        .lineLimit(1)
-                }
-                Spacer()
+                modelMenu
+                reasoningMenu
+                Spacer(minLength: 0)
                 if currentThread.activity == .active {
-                    Label("Codex 正在工作", systemImage: "sparkles")
+                    Label("工作中", systemImage: "sparkles")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.orange)
+                        .fixedSize()
                 }
             }
 
@@ -127,11 +114,79 @@ struct ChatView: View {
         .glassSurface(radius: DS.radiusMD)
     }
 
-    private var selectionLabel: String {
-        guard let selectedModelID else { return "沿用当前模型" }
-        let model = store.models.first { $0.model == selectedModelID }
-        let effort = model?.reasoningOptions.first { $0.id == selectedEffort }
-        return [model?.displayName, effort?.displayName].compactMap { $0 }.joined(separator: " · ")
+    private var modelMenu: some View {
+        Menu {
+            Picker("模型", selection: $selectedModelID) {
+                Text("沿用当前模型").tag(String?.none)
+                ForEach(store.models) { model in
+                    Text(model.displayName).tag(model.model as String?)
+                }
+            }
+        } label: {
+            Label(modelSelectionLabel, systemImage: "cpu")
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+                .frame(minHeight: 44)
+                .padding(.horizontal, 8)
+                .background(Color(.secondarySystemBackground), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("模型")
+        .accessibilityValue(modelSelectionLabel)
+        .accessibilityHint("选择下一条消息使用的模型")
+        .onChange(of: selectedModelID) { _, _ in
+            guard let selectedEffort,
+                  !reasoningOptions.contains(where: { $0.id == selectedEffort }) else { return }
+            self.selectedEffort = nil
+        }
+    }
+
+    private var reasoningMenu: some View {
+        Menu {
+            Picker("思索程度", selection: $selectedEffort) {
+                Text("沿用当前思索程度").tag(String?.none)
+                ForEach(reasoningOptions) { option in
+                    Text(reasoningOptionLabel(option)).tag(option.id as String?)
+                }
+            }
+        } label: {
+            Label(reasoningSelectionLabel, systemImage: "brain.head.profile")
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+                .frame(minHeight: 44)
+                .padding(.horizontal, 8)
+                .background(Color(.secondarySystemBackground), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("思索程度")
+        .accessibilityValue(reasoningSelectionLabel)
+        .accessibilityHint("选择下一条消息使用的思索程度")
+    }
+
+    private var selectedModel: CodexModel? {
+        guard let selectedModelID else { return nil }
+        return store.models.first { $0.model == selectedModelID }
+    }
+
+    private var reasoningOptions: [ReasoningOption] {
+        if let selectedModel { return selectedModel.reasoningOptions }
+        var seen = Set<String>()
+        return store.models
+            .flatMap(\.reasoningOptions)
+            .filter { seen.insert($0.id).inserted }
+    }
+
+    private var modelSelectionLabel: String {
+        selectedModel?.displayName ?? "当前模型"
+    }
+
+    private var reasoningSelectionLabel: String {
+        guard let selectedEffort else { return "当前思索" }
+        return reasoningOptions.first(where: { $0.id == selectedEffort })?.displayName ?? selectedEffort
+    }
+
+    private func reasoningOptionLabel(_ option: ReasoningOption) -> String {
+        option.description.isEmpty ? option.displayName : "\(option.displayName) · \(option.description)"
     }
 
     private func send() {

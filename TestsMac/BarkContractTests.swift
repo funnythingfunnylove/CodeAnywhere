@@ -3,6 +3,43 @@ import XCTest
 @testable import CodeAnywhereMac
 
 final class BarkContractTests: XCTestCase {
+    func testNotificationIdentifierFitsAPNsCollapseIDLimit() {
+        let oversized = "codeanywhere-" + String(repeating: "a", count: 64)
+        let normalized = BarkNotificationIdentifier.normalized(oversized)
+
+        XCTAssertEqual(normalized.utf8.count, 64)
+        XCTAssertEqual(normalized, BarkNotificationIdentifier.normalized(oversized))
+        XCTAssertNotEqual(normalized, BarkNotificationIdentifier.normalized(oversized + "b"))
+    }
+
+    func testShortNotificationIdentifierIsPreserved() {
+        XCTAssertEqual(
+            BarkNotificationIdentifier.normalized("codeanywhere-test-short"),
+            "codeanywhere-test-short"
+        )
+    }
+
+    func testBlankSavedServerURLFallsBackToDefault() {
+        XCTAssertEqual(
+            BarkServerConfiguration.resolvedURL(from: "  \n"),
+            BarkServerConfiguration.defaultURL
+        )
+    }
+
+    func testInvalidSavedServerURLFallsBackToDefault() {
+        XCTAssertEqual(
+            BarkServerConfiguration.resolvedURL(from: "not a url"),
+            BarkServerConfiguration.defaultURL
+        )
+    }
+
+    func testValidSavedServerURLIsTrimmedAndPreserved() {
+        XCTAssertEqual(
+            BarkServerConfiguration.resolvedURL(from: "  https://bark.example/base/  "),
+            "https://bark.example/base/"
+        )
+    }
+
     func testKeychainAccountMatchesCurrentMacOSUsername() {
         XCTAssertEqual(KeychainAccount.currentUsername(), NSUserName())
         XCTAssertFalse(KeychainAccount.currentUsername().isEmpty)

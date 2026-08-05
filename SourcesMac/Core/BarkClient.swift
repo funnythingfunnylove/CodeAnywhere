@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 enum BarkDeliveryError: LocalizedError, Equatable {
@@ -24,6 +25,33 @@ struct BarkNotification: Equatable, Sendable {
     let group: String
     let url: String
     let id: String
+}
+
+enum BarkNotificationIdentifier {
+    static let maximumUTF8Length = 64
+
+    static func normalized(_ value: String) -> String {
+        guard value.utf8.count > maximumUTF8Length else { return value }
+        return digest(value)
+    }
+
+    static func digest(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+}
+
+enum BarkServerConfiguration {
+    static let defaultURL = "http://192.168.1.10:8888"
+
+    static func resolvedURL(from savedValue: String?) -> String {
+        let candidate = savedValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !candidate.isEmpty, (try? BarkEndpoint.pushURL(from: candidate)) != nil else {
+            return defaultURL
+        }
+        return candidate
+    }
 }
 
 enum BarkEndpoint {
@@ -113,7 +141,7 @@ struct BarkClient: BarkSending, Sendable {
                 body: notification.body,
                 group: notification.group,
                 url: notification.url,
-                id: notification.id
+                id: BarkNotificationIdentifier.normalized(notification.id)
             )
         )
 

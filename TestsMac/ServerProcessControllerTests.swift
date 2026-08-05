@@ -1,8 +1,41 @@
 import Darwin
+import Combine
 import XCTest
 @testable import CodeAnywhereMac
 
 final class ServerProcessControllerTests: XCTestCase {
+    @MainActor
+    func testMacAppModelForwardsNestedServerStateChanges() async throws {
+        guard CodexExecutableLocator.locate() != nil else {
+            throw XCTSkip("此 Mac 未安装 Codex CLI")
+        }
+
+        let port = try Self.unusedLoopbackPort()
+        let suiteName = "CodeAnywhereMacTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let stateURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("state.json")
+        let controller = ServerProcessController()
+        let monitor = CompletionMonitor(persistence: FileCompletionStateStore(fileURL: stateURL))
+        let model = MacAppModel(defaults: defaults, server: controller, monitor: monitor)
+        model.configuredPort = port
+        defer {
+            monitor.stop()
+            _ = controller.stop(waitUntilExit: true)
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: stateURL.deletingLastPathComponent())
+        }
+
+        let changed = expectation(description: "MacAppModel forwards nested server state")
+        changed.assertForOverFulfill = false
+        let cancellable = model.objectWillChange.sink { changed.fulfill() }
+
+        model.startServer()
+        await fulfillment(of: [changed], timeout: 1)
+        withExtendedLifetime(cancellable) {}
+    }
+
     @MainActor
     func testRealCodexProcessStartsAndStopsOnUnusedPort() throws {
         guard CodexExecutableLocator.locate() != nil else {

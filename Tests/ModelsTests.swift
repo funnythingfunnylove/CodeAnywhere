@@ -1,5 +1,4 @@
 import XCTest
-import UserNotifications
 @testable import CodeAnywhere
 
 final class ModelsTests: XCTestCase {
@@ -172,42 +171,22 @@ final class ModelsTests: XCTestCase {
         XCTAssertTrue(ConnectionPreferences.shouldAutoConnect(defaults: defaults))
     }
 
-    func testCompletionNotificationContainsThreadNavigationPayload() {
-        let content = NotificationManager.completionContent(title: "修复列表", threadID: "thread-123")
-        XCTAssertEqual(content.title, "Codex 已完成")
-        XCTAssertEqual(content.body, "修复列表")
-        XCTAssertEqual(content.userInfo["threadId"] as? String, "thread-123")
-        XCTAssertNotNil(content.sound)
-    }
-
-    func testBackgroundWatchStoreTracksAndRemovesThread() throws {
-        let suiteName = "CodeAnywhereTests.BackgroundWatchStore.\(UUID().uuidString)"
+    @MainActor
+    func testStoreClearsLegacyIOSReminderState() throws {
+        let suiteName = "CodeAnywhereTests.LegacyIOSReminderState.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
+        let legacyKeys = [
+            "codeanywhere.watchedThreads",
+            "codeanywhere.backgroundRefreshScheduledAt",
+            "codeanywhere.backgroundRefreshCheckedAt",
+            "codeanywhere.backgroundRefreshError"
+        ]
+        legacyKeys.forEach { defaults.set("legacy", forKey: $0) }
 
-        BackgroundWatchStore.add(threadID: "thread-1", title: "首次标题", defaults: defaults)
-        BackgroundWatchStore.add(threadID: "thread-1", title: "更新标题", defaults: defaults)
-        XCTAssertEqual(
-            BackgroundWatchStore.all(defaults: defaults),
-            [WatchedThread(id: "thread-1", title: "更新标题")]
-        )
-        XCTAssertTrue(BackgroundWatchStore.remove(threadID: "thread-1", defaults: defaults))
-        XCTAssertFalse(BackgroundWatchStore.remove(threadID: "thread-1", defaults: defaults))
-        XCTAssertTrue(BackgroundWatchStore.all(defaults: defaults).isEmpty)
-    }
+        _ = RemoteCodexStore(defaults: defaults)
 
-    func testBackgroundWatchStoreTakesStoredTitleExactlyOnce() throws {
-        let suiteName = "CodeAnywhereTests.BackgroundWatchStoreTake.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        BackgroundWatchStore.add(threadID: "thread-1", title: "后台任务", defaults: defaults)
-
-        XCTAssertEqual(
-            BackgroundWatchStore.take(threadID: "thread-1", defaults: defaults),
-            WatchedThread(id: "thread-1", title: "后台任务")
-        )
-        XCTAssertNil(BackgroundWatchStore.take(threadID: "thread-1", defaults: defaults))
+        legacyKeys.forEach { XCTAssertNil(defaults.object(forKey: $0), $0) }
     }
 
     @MainActor
@@ -241,13 +220,16 @@ final class ModelsTests: XCTestCase {
         try await store.send(
             prompt: "继续提问",
             threadID: "historical-thread",
-            modelID: nil,
-            effort: nil
+            modelID: "gpt-5",
+            effort: "high"
         )
 
         let methods = await client.recordedMethods()
         XCTAssertEqual(Array(methods.prefix(2)), ["thread/resume", "turn/start"])
-        XCTAssertEqual(BackgroundWatchStore.all(defaults: defaults).map(\.id), ["historical-thread"])
+        let recordedTurnStartParams = await client.recordedTurnStartParams()
+        let turnStartParams = try XCTUnwrap(recordedTurnStartParams)
+        XCTAssertEqual(turnStartParams["model"]?.stringValue, "gpt-5")
+        XCTAssertEqual(turnStartParams["effort"]?.stringValue, "high")
     }
 
     func testLiveCodexAppServerHandshakeAndCatalogWhenAvailable() async throws {
@@ -554,6 +536,58 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(model.defaultReasoningEffort, "high")
         XCTAssertEqual(model.reasoningOptions.map(\.id), ["medium", "high"])
     }
+
+    func testNewConversationDefaultsHonorPreferencesAndFallbackToSupportedValues() throws {
+        let recommendedModel = try XCTUnwrap(CodexModel(json: .object([
+            "id": .string("gpt-5"),
+            "model": .string("gpt-5"),
+            "displayName": .string("GPT-5"),
+            "isDefault": .bool(true),
+            "defaultReasoningEffort": .string("high"),
+            "supportedReasoningEfforts": .array([
+                .object(["reasoningEffort": .string("medium")]),
+                .object(["reasoningEffort": .string("high")])
+            ])
+        ])))
+        let alternateModel = try XCTUnwrap(CodexModel(json: .object([
+            "id": .string("fast-model"),
+            "model": .string("fast-model"),
+            "displayName": .string("Fast Model"),
+            "isDefault": .bool(false),
+            "defaultReasoningEffort": .string("max"),
+            "supportedReasoningEfforts": .array([
+                .object(["reasoningEffort": .string("low")]),
+                .object(["reasoningEffort": .string("max")])
+            ])
+        ])))
+        let models = [recommendedModel, alternateModel]
+
+        XCTAssertEqual(
+            NewConversationDefaults.resolve(
+                models: models,
+                preferredModelID: "fast-model",
+                preferredReasoningEffort: "low"
+            ),
+            NewConversationDefaults(modelID: "fast-model", reasoningEffort: "low")
+        )
+        XCTAssertEqual(
+            NewConversationDefaults.resolve(
+                models: models,
+                preferredModelID: "missing-model",
+                preferredReasoningEffort: "unsupported"
+            ),
+            NewConversationDefaults(modelID: "gpt-5", reasoningEffort: "high")
+        )
+        XCTAssertEqual(
+            NewConversationDefaults.resolve(
+                models: models,
+                preferredModelID: "fast-model",
+                preferredReasoningEffort: "unsupported"
+            ),
+            NewConversationDefaults(modelID: "fast-model", reasoningEffort: "max")
+        )
+        XCTAssertEqual(ReasoningOption(id: "max", description: "").displayName, "极致")
+    }
 }
 
 private actor RecordingCodexClient: CodexClientProtocol {
@@ -563,6 +597,7 @@ private actor RecordingCodexClient: CodexClientProtocol {
 
     private var methods: [String] = []
     private var resumedThreadIDs: Set<String> = []
+    private var turnStartParams: [String: JSONValue]?
 
     func connect() async throws -> String { "Test Codex" }
 
@@ -581,6 +616,7 @@ private actor RecordingCodexClient: CodexClientProtocol {
                   resumedThreadIDs.contains(threadID) else {
                 throw CodexClientError.server(code: -32000, message: "thread not found")
             }
+            turnStartParams = params
             return .object([:])
         case "thread/read":
             return .object(["thread": Self.threadJSON])
@@ -594,6 +630,7 @@ private actor RecordingCodexClient: CodexClientProtocol {
     }
 
     func recordedMethods() -> [String] { methods }
+    func recordedTurnStartParams() -> [String: JSONValue]? { turnStartParams }
 
     private static let threadJSON: JSONValue = .object([
         "id": .string("historical-thread"),

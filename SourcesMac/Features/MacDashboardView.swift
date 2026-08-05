@@ -11,11 +11,11 @@ struct MacDashboardView: View {
                 monitorSection
                 barkSection
                 logSection
+                versionFooter
             }
             .padding(24)
         }
         .frame(minWidth: 700, minHeight: 680)
-        .onAppear { model.handleInitialLaunch() }
     }
 
     private var serverSection: some View {
@@ -67,6 +67,44 @@ struct MacDashboardView: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                Divider()
+                HStack {
+                    Text("提醒记录")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Button("一键清除") { model.monitor.clearNotificationHistory() }
+                        .disabled(model.monitor.notificationHistory.isEmpty && model.monitor.deliveredCount == 0)
+                }
+                if model.monitor.notificationHistory.isEmpty {
+                    Text(
+                        model.monitor.deliveredCount > 0
+                            ? "有 \(model.monitor.deliveredCount) 条旧版提醒记录，可一键清除"
+                            : "暂无已接受的提醒记录"
+                    )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(spacing: 6) {
+                        ForEach(model.monitor.notificationHistory.prefix(20)) { record in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Image(systemName: record.terminalState == .completed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                                    .foregroundStyle(record.terminalState == .completed ? .green : .orange)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(record.title)
+                                        .font(.caption.weight(.semibold))
+                                    Text(record.body)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                Text(record.deliveredAt.formatted(date: .omitted, time: .standard))
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
+                }
             }
             .padding(8)
         }
@@ -134,6 +172,16 @@ struct MacDashboardView: View {
             }
             .padding(8)
         }
+    }
+
+    private var versionFooter: some View {
+        HStack {
+            Text("关闭此窗口后，CodeAnywhere Mac 会继续在后台运行，可从菜单栏图标重新打开。")
+            Spacer()
+            Text(model.versionDisplay)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 
     private var barkStatusColor: Color {

@@ -10,7 +10,7 @@ enum MonitoredThreadState: String, Codable, Sendable {
 
     init(codexStatus: String) {
         switch codexStatus.lowercased() {
-        case "active": self = .active
+        case "active", "inprogress": self = .active
         case "idle", "completed": self = .completed
         case "systemerror", "failed", "error": self = .failed
         case "interrupted", "cancelled", "canceled": self = .interrupted
@@ -31,6 +31,7 @@ struct MonitoredThreadSnapshot: Codable, Equatable, Sendable {
     let title: String
     let updatedAt: Date
     let state: MonitoredThreadState
+    let turnID: String?
 
     init?(json: MacJSONValue) {
         guard let id = json["id"]?.stringValue, !id.isEmpty else { return nil }
@@ -50,15 +51,27 @@ struct MonitoredThreadSnapshot: Codable, Equatable, Sendable {
         guard let rawDate = json["updatedAt"]?.intValue else { return nil }
         let seconds = rawDate > 10_000_000_000 ? Double(rawDate) / 1_000 : Double(rawDate)
         updatedAt = Date(timeIntervalSince1970: seconds)
-        let status = json["status"]?["type"]?.stringValue ?? json["status"]?.stringValue ?? "unknown"
+        let latestTurn = json["turns"]?.arrayValue?.last
+        turnID = latestTurn?["id"]?.stringValue
+        let status = latestTurn?["status"]?.stringValue
+            ?? json["status"]?["type"]?.stringValue
+            ?? json["status"]?.stringValue
+            ?? "unknown"
         state = MonitoredThreadState(codexStatus: status)
     }
 
-    init(id: String, title: String, updatedAt: Date, state: MonitoredThreadState) {
+    init(
+        id: String,
+        title: String,
+        updatedAt: Date,
+        state: MonitoredThreadState,
+        turnID: String? = nil
+    ) {
         self.id = id
         self.title = title
         self.updatedAt = updatedAt
         self.state = state
+        self.turnID = turnID
     }
 }
 
@@ -80,26 +93,78 @@ struct PendingCompletionDelivery: Codable, Equatable, Identifiable, Sendable {
     var nextAttemptAt: Date
 }
 
+struct CompletionNotificationRecord: Codable, Equatable, Identifiable, Sendable {
+    let id: String
+    let threadID: String
+    let title: String
+    let body: String
+    let terminalState: MonitoredThreadState
+    let threadUpdatedAt: Date
+    let deliveredAt: Date
+}
+
 struct CompletionMonitorState: Codable, Equatable, Sendable {
     var baseline: Date
     var active: [String: ActiveThreadObservation]
     var pending: [String: PendingCompletionDelivery]
     var delivered: [String: Date]
+    var notificationHistory: [CompletionNotificationRecord]
 
     init(
         baseline: Date,
         active: [String: ActiveThreadObservation] = [:],
         pending: [String: PendingCompletionDelivery] = [:],
-        delivered: [String: Date] = [:]
+        delivered: [String: Date] = [:],
+        notificationHistory: [CompletionNotificationRecord] = []
     ) {
         self.baseline = baseline
         self.active = active
         self.pending = pending
         self.delivered = delivered
+        self.notificationHistory = notificationHistory
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case baseline, active, pending, delivered, notificationHistory
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        baseline = try container.decode(Date.self, forKey: .baseline)
+        active = try container.decodeIfPresent([String: ActiveThreadObservation].self, forKey: .active) ?? [:]
+        pending = try container.decodeIfPresent([String: PendingCompletionDelivery].self, forKey: .pending) ?? [:]
+        delivered = try container.decodeIfPresent([String: Date].self, forKey: .delivered) ?? [:]
+        notificationHistory = try container.decodeIfPresent(
+            [CompletionNotificationRecord].self,
+            forKey: .notificationHistory
+        ) ?? []
     }
 }
 
 enum CompletionDetector {
+    static func prepareForMonitoring(
+        state: inout CompletionMonitorState,
+        now: Date,
+        maximumAttempts: Int
+    ) {
+        var latestByThread: [String: PendingCompletionDelivery] = [:]
+        for delivery in state.pending.values where delivery.terminalState == .completed {
+            guard let existing = latestByThread[delivery.threadID] else {
+                latestByThread[delivery.threadID] = delivery
+                continue
+            }
+            if delivery.threadUpdatedAt > existing.threadUpdatedAt {
+                latestByThread[delivery.threadID] = delivery
+            }
+        }
+
+        state.pending = Dictionary(uniqueKeysWithValues: latestByThread.values.map { delivery in
+            var recovered = delivery
+            recovered.nextAttemptAt = recovered.attempts < maximumAttempts ? now : .distantFuture
+            return (recovered.id, recovered)
+        })
+    }
+
     static func observe(
         snapshots: [MonitoredThreadSnapshot],
         state: inout CompletionMonitorState,
@@ -120,12 +185,14 @@ enum CompletionDetector {
                 continue
             }
 
-            guard snapshot.state.isTerminal else { continue }
             let wasActive = state.active.removeValue(forKey: snapshot.id) != nil
+            guard snapshot.state == .completed,
+                  let turnID = snapshot.turnID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !turnID.isEmpty else { continue }
             let firstAppearedAfterBaseline = snapshot.updatedAt > previousBaseline
             guard wasActive || firstAppearedAfterBaseline else { continue }
 
-            let eventID = stableEventID(for: snapshot)
+            let eventID = stableEventID(threadID: snapshot.id, turnID: turnID)
             guard state.delivered[eventID] == nil, state.pending[eventID] == nil else { continue }
             state.pending[eventID] = PendingCompletionDelivery(
                 id: eventID,
@@ -145,14 +212,55 @@ enum CompletionDetector {
         }
     }
 
+    static func observeTurnCompleted(
+        _ event: MacCodexTurnCompletedEvent,
+        title: String,
+        state: inout CompletionMonitorState,
+        now: Date
+    ) {
+        state.active.removeValue(forKey: event.threadID)
+        let eventID = stableEventID(threadID: event.threadID, turnID: event.turnID)
+        guard state.delivered[eventID] == nil, state.pending[eventID] == nil else { return }
+        state.pending[eventID] = PendingCompletionDelivery(
+            id: eventID,
+            threadID: event.threadID,
+            title: notificationTitle(for: .completed),
+            body: title,
+            group: "CodeAnywhere",
+            deepLink: deepLink(for: event.threadID),
+            terminalState: .completed,
+            threadUpdatedAt: now,
+            attempts: 0,
+            nextAttemptAt: now
+        )
+    }
+
     static func markDelivered(
         eventID: String,
         state: inout CompletionMonitorState,
         at date: Date,
         maximumHistory: Int = 2_000
     ) {
-        state.pending.removeValue(forKey: eventID)
+        let delivery = state.pending.removeValue(forKey: eventID)
         state.delivered[eventID] = date
+        if let delivery {
+            state.notificationHistory.removeAll { $0.id == eventID }
+            state.notificationHistory.append(
+                CompletionNotificationRecord(
+                    id: delivery.id,
+                    threadID: delivery.threadID,
+                    title: delivery.title,
+                    body: delivery.body,
+                    terminalState: delivery.terminalState,
+                    threadUpdatedAt: delivery.threadUpdatedAt,
+                    deliveredAt: date
+                )
+            )
+            state.notificationHistory.sort { $0.deliveredAt > $1.deliveredAt }
+            if state.notificationHistory.count > 500 {
+                state.notificationHistory.removeLast(state.notificationHistory.count - 500)
+            }
+        }
         if state.delivered.count > maximumHistory {
             let oldest = state.delivered.sorted { $0.value < $1.value }
             for entry in oldest.prefix(state.delivered.count - maximumHistory) {
@@ -161,11 +269,17 @@ enum CompletionDetector {
         }
     }
 
+    static func clearNotificationHistory(state: inout CompletionMonitorState) {
+        state.notificationHistory.removeAll()
+    }
+
     static func stableEventID(for snapshot: MonitoredThreadSnapshot) -> String {
-        let milliseconds = Int64((snapshot.updatedAt.timeIntervalSince1970 * 1_000).rounded())
-        let source = "\(snapshot.id)|\(milliseconds)|\(snapshot.state.rawValue)"
-        let digest = SHA256.hash(data: Data(source.utf8))
-        return "codeanywhere-" + digest.map { String(format: "%02x", $0) }.joined()
+        stableEventID(threadID: snapshot.id, turnID: snapshot.turnID ?? "")
+    }
+
+    private static func stableEventID(threadID: String, turnID: String) -> String {
+        let source = "\(threadID)|turn|\(turnID)"
+        return BarkNotificationIdentifier.digest(source)
     }
 
     static func deepLink(for threadID: String) -> String {
@@ -177,9 +291,7 @@ enum CompletionDetector {
     private static func notificationTitle(for state: MonitoredThreadState) -> String {
         switch state {
         case .completed: return "Codex 已完成"
-        case .failed: return "Codex 任务失败"
-        case .interrupted: return "Codex 任务已中断"
-        case .active, .unknown: return "Codex 状态已更新"
+        case .failed, .interrupted, .active, .unknown: return "Codex 状态已更新"
         }
     }
 }

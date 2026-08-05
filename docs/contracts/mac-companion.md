@@ -30,11 +30,18 @@ must not depend on background execution for completion delivery.
 ## Completion monitoring contract
 
 - The Mac app establishes its own authenticated app-server client after launch.
-- The monitor reads authoritative thread state through `thread/list`; it does
-  not assume notifications from a different WebSocket session are broadcast.
-- A completion candidate is a thread observed as `active` and later observed in
-  a terminal state, or a thread updated after the monitor baseline that first
-  appears terminal.
+- A received `turn/completed` server notification is parsed from
+  `params.threadId` and `params.turn.id/status`, then enters the same persisted,
+  deduplicated Bark delivery path immediately.
+- Polling remains the fallback for turns whose server notification is not
+  broadcast to this WebSocket session: `thread/list` finds changed threads and
+  `thread/read(includeTurns: true)` reads the authoritative latest Turn.
+- A completion candidate must have a latest Turn whose status is exactly
+  `completed`. Failed, interrupted, idle, and unrelated thread timestamp
+  updates never create a Bark delivery.
+- Delivery identity is derived from the Codex Turn ID, so one completed Turn is
+  sent at most once while a later completed Turn in the same thread remains a
+  distinct event.
 - Active observations and delivered event identifiers are persisted locally so
   an app restart does not lose an in-flight completion or duplicate a delivery.
 - Polling failures retain the last-good state and retry with bounded delay.
@@ -50,8 +57,24 @@ must not depend on background execution for completion delivery.
 - Payload fields are `title`, `body`, `group`, `url`, and a stable `id`.
 - Delivery is recorded only after HTTP success and Bark business `code: 200`.
   Server acceptance is not reported as proof that iOS displayed the message.
-- A failed delivery remains retryable and must not create an unbounded retry
-  loop.
+- A failed delivery retries at most five times with bounded backoff. Further
+  attempts require the explicit retry action and never form an unbounded loop.
+
+## Process log contract
+
+- Real Codex warnings and all errors remain visible after secret redaction.
+- Expected client disconnect noise (`Connection reset without closing
+  handshake` and delivery to an already disconnected connection) is omitted
+  from the Mac dashboard log because iOS termination and network transitions
+  cannot guarantee a WebSocket closing handshake.
+
+## macOS application lifecycle contract
+
+- Closing the main window does not quit the app or stop its owned app-server.
+- The regular Dock presence is retained and a menu bar item exposes server and
+  monitor status, main-window reopening, start/stop, and explicit quit.
+- Explicit Quit remains the only UI action that shuts down the monitor and the
+  app-server process owned by this app.
 
 ## Deep-link contract
 

@@ -23,6 +23,7 @@ final class CompletionMonitor: ObservableObject {
     @Published private(set) var lastSuccessfulPoll: Date?
     @Published private(set) var pendingCount = 0
     @Published private(set) var deliveredCount = 0
+    @Published private(set) var notificationHistory: [CompletionNotificationRecord] = []
 
     private let persistence: any CompletionStatePersisting
     private let deviceKeyStore: any DeviceKeyStoring
@@ -35,6 +36,7 @@ final class CompletionMonitor: ObservableObject {
     private var currentPort: Int?
     private var consecutivePollFailures = 0
     private var isPolling = false
+    private var threadTitles: [String: String] = [:]
 
     var barkServerURL: String = ""
 
@@ -59,6 +61,12 @@ final class CompletionMonitor: ObservableObject {
 
     func start(port: Int) {
         stop()
+        CompletionDetector.prepareForMonitoring(
+            state: &monitorState,
+            now: Date(),
+            maximumAttempts: retryPolicy.maximumAttempts
+        )
+        persistState()
         currentPort = port
         status = .connecting
         pollTask = Task { [weak self] in
@@ -91,6 +99,11 @@ final class CompletionMonitor: ObservableObject {
         }
         persistState()
         pollNow()
+    }
+
+    func clearNotificationHistory() {
+        CompletionDetector.clearNotificationHistory(state: &monitorState)
+        persistState()
     }
 
     private func runLoop() async {
@@ -130,13 +143,34 @@ final class CompletionMonitor: ObservableObject {
         if let client { return client }
         status = .connecting
         let newClient = clientFactory(port)
+        await newClient.setEventHandler { [weak self] event in
+            Task { @MainActor [weak self] in
+                await self?.handleServerEvent(event)
+            }
+        }
         try await newClient.connect()
         client = newClient
         return newClient
     }
 
+    private func handleServerEvent(_ event: MacCodexServerEvent) async {
+        guard currentPort != nil else { return }
+        switch event {
+        case .turnCompleted(let completion):
+            let now = Date()
+            CompletionDetector.observeTurnCompleted(
+                completion,
+                title: threadTitles[completion.threadID] ?? "Codex 对话",
+                state: &monitorState,
+                now: now
+            )
+            persistState()
+            await deliverDueNotifications(now: now)
+        }
+    }
+
     private func fetchAllThreads(using client: any MacCodexClientProtocol) async throws -> [MonitoredThreadSnapshot] {
-        var snapshotsByID: [String: MonitoredThreadSnapshot] = [:]
+        var listedSnapshotsByID: [String: MonitoredThreadSnapshot] = [:]
         for archived in [false, true] {
             var cursor: String?
             var pageCount = 0
@@ -154,14 +188,31 @@ final class CompletionMonitor: ObservableObject {
                 let result = try await client.call(method: "thread/list", params: params)
                 for value in result["data"]?.arrayValue ?? [] {
                     if let snapshot = MonitoredThreadSnapshot(json: value) {
-                        snapshotsByID[snapshot.id] = snapshot
+                        listedSnapshotsByID[snapshot.id] = snapshot
+                        threadTitles[snapshot.id] = snapshot.title
                     }
                 }
                 let next = result["nextCursor"]?.stringValue
                 cursor = next?.isEmpty == false ? next : nil
             } while cursor != nil
         }
-        return Array(snapshotsByID.values)
+
+        var detailedSnapshots: [MonitoredThreadSnapshot] = []
+        for listedSnapshot in listedSnapshotsByID.values {
+            guard listedSnapshot.updatedAt > monitorState.baseline
+                    || monitorState.active[listedSnapshot.id] != nil else { continue }
+            let result = try await client.call(
+                method: "thread/read",
+                params: [
+                    "threadId": .string(listedSnapshot.id),
+                    "includeTurns": .bool(true)
+                ]
+            )
+            guard let thread = result["thread"],
+                  let detailedSnapshot = MonitoredThreadSnapshot(json: thread) else { continue }
+            detailedSnapshots.append(detailedSnapshot)
+        }
+        return detailedSnapshots
     }
 
     private func deliverDueNotifications(now: Date) async {
@@ -218,6 +269,7 @@ final class CompletionMonitor: ObservableObject {
 
     private func updateCounts() {
         pendingCount = monitorState.pending.count
-        deliveredCount = monitorState.delivered.count
+        deliveredCount = monitorState.notificationHistory.count
+        notificationHistory = monitorState.notificationHistory
     }
 }

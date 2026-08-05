@@ -16,6 +16,26 @@ enum BarkConfigurationStatus: Equatable {
     }
 }
 
+enum MacAppVersion {
+    static var display: String {
+        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        return formatted(shortVersion: shortVersion, build: build)
+    }
+
+    static func formatted(shortVersion: String?, build: String?) -> String {
+        let resolvedVersion = shortVersion?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedBuild = build?.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch (resolvedVersion?.isEmpty == false ? resolvedVersion : nil,
+                resolvedBuild?.isEmpty == false ? resolvedBuild : nil) {
+        case let (.some(version), .some(build)): return "版本 \(version)（\(build)）"
+        case let (.some(version), .none): return "版本 \(version)"
+        case let (.none, .some(build)): return "构建 \(build)"
+        case (.none, .none): return "版本未知"
+        }
+    }
+}
+
 @MainActor
 final class MacAppModel: ObservableObject {
     @Published var configuredPort: Int {
@@ -27,7 +47,7 @@ final class MacAppModel: ObservableObject {
     @Published var barkServerURL: String {
         didSet {
             defaults.set(barkServerURL, forKey: Keys.barkServerURL)
-            monitor.barkServerURL = barkServerURL
+            monitor.barkServerURL = BarkServerConfiguration.resolvedURL(from: barkServerURL)
         }
     }
     @Published private(set) var hasStoredDeviceKey = false
@@ -36,10 +56,13 @@ final class MacAppModel: ObservableObject {
     let server: ServerProcessController
     let monitor: CompletionMonitor
 
+    var versionDisplay: String { MacAppVersion.display }
+
     private let defaults: UserDefaults
     private let deviceKeyStore: any DeviceKeyStoring
     private let barkSender: any BarkSending
     private var didHandleInitialLaunch = false
+    private var cancellables = Set<AnyCancellable>()
 
     init(
         defaults: UserDefaults = .standard,
@@ -58,12 +81,22 @@ final class MacAppModel: ObservableObject {
         let savedPort = defaults.integer(forKey: Keys.port)
         configuredPort = (1...65_535).contains(savedPort) ? savedPort : 4_500
         startsAutomatically = defaults.object(forKey: Keys.autoStart) as? Bool ?? false
-        barkServerURL = defaults.string(forKey: Keys.barkServerURL) ?? "http://192.168.1.10:8888"
+        let savedBarkServerURL = defaults.string(forKey: Keys.barkServerURL)
+        barkServerURL = BarkServerConfiguration.resolvedURL(from: savedBarkServerURL)
+        if savedBarkServerURL != barkServerURL {
+            defaults.set(barkServerURL, forKey: Keys.barkServerURL)
+        }
         resolvedMonitor.barkServerURL = barkServerURL
         hasStoredDeviceKey = (try? deviceKeyStore.read())?.isEmpty == false
         resolvedServer.onExit = { [weak resolvedMonitor] _ in
             resolvedMonitor?.stop()
         }
+        resolvedServer.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        resolvedMonitor.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
     func handleInitialLaunch() {
@@ -75,7 +108,7 @@ final class MacAppModel: ObservableObject {
     func startServer() {
         do {
             try server.start(port: configuredPort)
-            monitor.barkServerURL = barkServerURL
+            monitor.barkServerURL = BarkServerConfiguration.resolvedURL(from: barkServerURL)
             monitor.start(port: configuredPort)
         } catch {
             barkStatus = .failure(ProcessLogRedactor.redact(error.localizedDescription))
@@ -128,7 +161,7 @@ final class MacAppModel: ObservableObject {
                     id: testID
                 ),
                 deviceKey: deviceKey,
-                serverURL: barkServerURL
+                serverURL: BarkServerConfiguration.resolvedURL(from: barkServerURL)
             )
             barkStatus = .success("Bark Server 已接受测试请求；请在 iPhone 上确认是否显示")
         } catch {

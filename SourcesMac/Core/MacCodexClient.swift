@@ -18,10 +18,43 @@ enum MacCodexClientError: LocalizedError, Sendable {
     }
 }
 
+struct MacCodexTurnCompletedEvent: Equatable, Sendable {
+    let threadID: String
+    let turnID: String
+}
+
+enum MacCodexServerEvent: Equatable, Sendable {
+    case turnCompleted(MacCodexTurnCompletedEvent)
+}
+
+enum MacCodexServerEventParser {
+    static func parse(data: Data) -> MacCodexServerEvent? {
+        guard let message = try? JSONDecoder().decode(MacJSONValue.self, from: data),
+              message["method"]?.stringValue == "turn/completed",
+              let params = message["params"],
+              let threadID = params["threadId"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !threadID.isEmpty,
+              let turn = params["turn"],
+              turn["status"]?.stringValue == "completed",
+              let turnID = turn["id"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !turnID.isEmpty else {
+            return nil
+        }
+        return .turnCompleted(
+            MacCodexTurnCompletedEvent(threadID: threadID, turnID: turnID)
+        )
+    }
+}
+
 protocol MacCodexClientProtocol: Sendable {
     func connect() async throws
     func disconnect() async
     func call(method: String, params: [String: MacJSONValue]) async throws -> MacJSONValue
+    func setEventHandler(_ handler: (@Sendable (MacCodexServerEvent) -> Void)?) async
+}
+
+extension MacCodexClientProtocol {
+    func setEventHandler(_ handler: (@Sendable (MacCodexServerEvent) -> Void)?) async {}
 }
 
 actor MacCodexWebSocketClient: MacCodexClientProtocol {
@@ -32,6 +65,7 @@ actor MacCodexWebSocketClient: MacCodexClientProtocol {
     private var nextRequestID = 1
     private var pending: [Int: CheckedContinuation<MacJSONValue, Error>] = [:]
     private var timeouts: [Int: Task<Void, Never>] = [:]
+    private var eventHandler: (@Sendable (MacCodexServerEvent) -> Void)?
 
     init(port: Int, session: URLSession = .shared) {
         self.port = port
@@ -67,7 +101,7 @@ actor MacCodexWebSocketClient: MacCodexClientProtocol {
                     "clientInfo": .object([
                         "name": .string("codeanywhere-mac"),
                         "title": .string("CodeAnywhere Mac"),
-                    "version": .string("0.1.1")
+                        "version": .string("0.1.1")
                     ]),
                     "capabilities": .object(["experimentalApi": .bool(false)])
                 ]
@@ -84,7 +118,12 @@ actor MacCodexWebSocketClient: MacCodexClientProtocol {
         listener = nil
         socket?.cancel(with: .normalClosure, reason: nil)
         socket = nil
+        eventHandler = nil
         failAll(with: MacCodexClientError.disconnected)
+    }
+
+    func setEventHandler(_ handler: (@Sendable (MacCodexServerEvent) -> Void)?) {
+        eventHandler = handler
     }
 
     func call(method: String, params: [String: MacJSONValue] = [:]) async throws -> MacJSONValue {
@@ -156,8 +195,13 @@ actor MacCodexWebSocketClient: MacCodexClientProtocol {
     }
 
     private func handle(data: Data) {
-        guard let message = try? JSONDecoder().decode(MacJSONValue.self, from: data),
-              let id = message["id"]?.intValue else {
+        guard let message = try? JSONDecoder().decode(MacJSONValue.self, from: data) else {
+            return
+        }
+        guard let id = message["id"]?.intValue else {
+            if let event = MacCodexServerEventParser.parse(data: data) {
+                eventHandler?(event)
+            }
             return
         }
         if let error = message["error"] {

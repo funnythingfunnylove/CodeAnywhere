@@ -50,6 +50,6 @@ iOS App 会切换到“对话”Tab、连接并刷新列表，然后打开对应
 - 回答、reasoning 与命令输出按 app-server delta 事件流式显示；reasoning 和命令行默认折叠，可随时展开
 - `model/list` 动态匹配桌面端模型及 reasoning effort
 - `fs/createDirectory` 在桌面端新建项目目录
-- `item/agentMessage/delta` 实时输出，`turn/completed` 完成提醒
+- `item/agentMessage/delta` 实时输出，`turn/completed` 更新前台对话状态
 
-iOS 端仍保留 `BGAppRefreshTask` 与本地通知作为辅助能力，但 iOS 后台唤醒由系统调度，不能保证常驻。可靠的离线完成提醒由持续运行的 CodeAnywhere Mac 监控并通过 Bark 发送。
+iOS 端不再调度后台刷新或发送本地完成通知。离线完成提醒全部由持续运行的 CodeAnywhere Mac 监控并通过 Bark 发送；Mac App 未运行或 Bark 未配置时不会收到离线提醒。

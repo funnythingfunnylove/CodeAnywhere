@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		029195290EB019F9D4ACBCCF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8885F83B1F01D570EE05618E /* Assets.xcassets */; };
 		0DAD789327A32E47B75DE393 /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75CE409448A13D8402E82EEF /* ConnectionView.swift */; };
 		15255E3F69A4AFAA16B4AC44 /* AppIcon.svg in Resources */ = {isa = PBXBuildFile; fileRef = 24958086858F22298FBC6E33 /* AppIcon.svg */; };
 		1A8ED0E0B406A162D1DCC8D8 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F55DAD11A195B14C816EDC05 /* PrivacyInfo.xcprivacy */; };
@@ -22,7 +23,6 @@
 		5769480F9745DAC6E6A65A83 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF6854B70281CCC68E43221 /* Models.swift */; };
 		6427F47898A77FC253B640E8 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 832CDA649626AE698083757A /* RootView.swift */; };
 		650F066A9B3EE11303E56E98 /* MacJSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEAFF901967BCB2AEB32399 /* MacJSONValue.swift */; };
-		69524C4C1B5CD76452444181 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C51E80630D56BD8960B2F3D /* AppDelegate.swift */; };
 		69741036E2D3C629CB24D653 /* ThreadTurnStarter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5393E3D94EC232DF9C6E70DD /* ThreadTurnStarter.swift */; };
 		6E7C92B059A150D5EAFEF502 /* CompletionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785C56F8246F566EFFA53A46 /* CompletionStateTests.swift */; };
 		73516C9472231D5200462884 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356611AE2C24C5912EBEAC8A /* SessionsView.swift */; };
@@ -83,7 +83,6 @@
 		5393E3D94EC232DF9C6E70DD /* ThreadTurnStarter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadTurnStarter.swift; sourceTree = "<group>"; };
 		597229C873BB1783F75F66EC /* MacDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDashboardView.swift; sourceTree = "<group>"; };
 		6875635982EDAD4F8CEC4B25 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		6C51E80630D56BD8960B2F3D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7316E2DABF84742F0BF812DE /* CodeAnywhereMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodeAnywhereMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		74356C8BAC7F47EB583393C8 /* CodeAnywhereApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeAnywhereApp.swift; sourceTree = "<group>"; };
 		753F3719129065A80EBEFB56 /* RemoteCodexStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteCodexStore.swift; sourceTree = "<group>"; };
@@ -209,7 +208,6 @@
 		84D987BD82C283E59C5DE434 /* App */ = {
 			isa = PBXGroup;
 			children = (
-				6C51E80630D56BD8960B2F3D /* AppDelegate.swift */,
 				74356C8BAC7F47EB583393C8 /* CodeAnywhereApp.swift */,
 				172D93448F2AD0D7D9F2A65F /* Info.plist */,
 			);
@@ -265,6 +263,7 @@
 			buildConfigurationList = 6126B4DD5EF2C55F4ACCE2E9 /* Build configuration list for PBXNativeTarget "CodeAnywhereMac" */;
 			buildPhases = (
 				9A18BD72EC47CB6ADF93C30E /* Sources */,
+				CD4A149FDE68B9FAA82DE3D3 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -381,6 +380,14 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		CD4A149FDE68B9FAA82DE3D3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				029195290EB019F9D4ACBCCF /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FD1B0D7BC5B4A21C8A090F5E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -426,7 +433,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				69524C4C1B5CD76452444181 /* AppDelegate.swift in Sources */,
 				E6A5B491A72F4C93A9B6B41A /* AppearancePreference.swift in Sources */,
 				854E53E722A7DA80DBD15ED4 /* ChatView.swift in Sources */,
 				E06EDC3F6D6431E51E11056B /* CodeAnywhereApp.swift in Sources */,
@@ -541,7 +547,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = SA4L8J8X2M;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -638,7 +644,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = SA4L8J8X2M;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

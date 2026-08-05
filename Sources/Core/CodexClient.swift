@@ -70,7 +70,7 @@ actor CodexWebSocketClient: CodexClientProtocol {
                 "clientInfo": .object([
                     "name": .string("codeanywhere-ios"),
                     "title": .string("CodeAnywhere"),
-                    "version": .string("0.1.0")
+                    "version": .string("0.1.1")
                 ]),
                 "capabilities": .object(["experimentalApi": .bool(false)])
             ]

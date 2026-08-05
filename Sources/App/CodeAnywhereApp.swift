@@ -2,7 +2,6 @@ import SwiftUI
 
 @main
 struct CodeAnywhereApp: App {
-    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var store = RemoteCodexStore()
     @AppStorage(StorageKey.appearance) private var appearanceValue = AppAppearance.system.rawValue
@@ -23,10 +22,7 @@ struct CodeAnywhereApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
-                    Task {
-                        _ = await BackgroundCompletionMonitor.checkNow()
-                        await store.connectIfConfigured()
-                    }
+                    Task { await store.connectIfConfigured() }
                 }
         }
     }

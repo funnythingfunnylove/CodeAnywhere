@@ -44,7 +44,7 @@ struct ReasoningOption: Identifiable, Hashable, Sendable {
         case "low": return "较少"
         case "medium": return "标准"
         case "high": return "深入"
-        case "xhigh": return "极致"
+        case "max", "xhigh": return "极致"
         default: return id
         }
     }
@@ -73,6 +73,43 @@ struct CodexModel: Identifiable, Hashable, Sendable {
             guard let effort = value["reasoningEffort"]?.stringValue else { return nil }
             return ReasoningOption(id: effort, description: value["description"]?.stringValue ?? "")
         }
+    }
+}
+
+struct NewConversationDefaults: Equatable, Sendable {
+    let modelID: String
+    let reasoningEffort: String?
+
+    static func resolve(
+        models: [CodexModel],
+        preferredModelID: String?,
+        preferredReasoningEffort: String?
+    ) -> NewConversationDefaults? {
+        guard let model = preferredModel(in: models, preferredModelID: preferredModelID) else {
+            return nil
+        }
+
+        let preferredEffort = preferredReasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let supportedEffort = model.reasoningOptions.first { $0.id == preferredEffort }?.id
+        return NewConversationDefaults(
+            modelID: model.model,
+            reasoningEffort: supportedEffort ?? recommendedReasoningEffort(for: model)
+        )
+    }
+
+    static func preferredModel(
+        in models: [CodexModel],
+        preferredModelID: String?
+    ) -> CodexModel? {
+        let preferredID = preferredModelID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return models.first { $0.model == preferredID }
+            ?? models.first(where: \.isDefault)
+            ?? models.first
+    }
+
+    static func recommendedReasoningEffort(for model: CodexModel) -> String? {
+        model.reasoningOptions.first { $0.id == model.defaultReasoningEffort }?.id
+            ?? model.reasoningOptions.first?.id
     }
 }
 

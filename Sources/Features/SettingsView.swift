@@ -1,13 +1,17 @@
 import SwiftUI
-import UIKit
 
 struct SettingsView: View {
     @EnvironmentObject private var store: RemoteCodexStore
-    @Environment(\.openURL) private var openURL
     @AppStorage(StorageKey.appearance) private var appearanceValue = AppAppearance.system.rawValue
-    @State private var notificationState: NotificationAuthorizationState = .notDetermined
-    @State private var notificationFeedback: String?
-    @State private var backgroundSnapshot = BackgroundRefreshDiagnostics.snapshot()
+    @AppStorage(StorageKey.defaultModel) private var defaultModelID = ""
+    @AppStorage(StorageKey.defaultReasoningEffort) private var defaultReasoningEffort = ""
+
+    private var selectedDefaultModel: CodexModel? {
+        NewConversationDefaults.preferredModel(
+            in: store.models,
+            preferredModelID: defaultModelID
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -23,28 +27,47 @@ struct SettingsView: View {
                         Task { await store.disconnect() }
                     }
                 }
-                Section("后台提醒") {
-                    LabeledContent("通知权限", value: notificationState.title)
-                    LabeledContent("等待提醒", value: "\(backgroundSnapshot.watchedCount) 个任务")
-                    if let checkedAt = backgroundSnapshot.checkedAt {
-                        LabeledContent("最近后台检查") {
-                            Text(checkedAt, format: .relative(presentation: .named))
-                        }
-                    }
-                    notificationAction
-                    if let notificationFeedback {
-                        Text(notificationFeedback)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text("iOS 会按系统调度在后台检查状态；App 保持运行或被系统唤醒时可即时提醒。")
+                Section("Bark 提醒") {
+                    LabeledContent("提醒来源", value: "CodeAnywhere Mac")
+                    LabeledContent("通知方式", value: "Bark")
+                    Text("完成提醒全部由 Mac 伴侣监控并通过 Bark 发送；点击 Bark 通知可打开对应对话。Mac App 未运行或 Bark 尚未配置时不会收到离线提醒。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    if let errorMessage = backgroundSnapshot.errorMessage {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle")
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
+                }
+                Section {
+                    if store.models.isEmpty {
+                        Label("暂时没有可用模型", systemImage: "cpu")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("默认模型", selection: $defaultModelID) {
+                            Text("服务端推荐").tag("")
+                            ForEach(store.models) { model in
+                                Text(model.displayName).tag(model.model)
+                            }
+                        }
+
+                        if let selectedDefaultModel, !selectedDefaultModel.reasoningOptions.isEmpty {
+                            Picker("默认思考级别", selection: $defaultReasoningEffort) {
+                                Text(recommendedEffortLabel(for: selectedDefaultModel)).tag("")
+                                ForEach(selectedDefaultModel.reasoningOptions) { option in
+                                    Text(option.displayName).tag(option.id)
+                                }
+                            }
+
+                            if let description = selectedEffortDescription, !description.isEmpty {
+                                Text(description)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            LabeledContent("默认思考级别", value: "由模型决定")
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                } header: {
+                    Text("新对话默认值")
+                } footer: {
+                    Text("创建新对话时会自动带入这些选项，仍可在开始前单独调整。")
                 }
                 Section("外观") {
                     Picker("显示模式", selection: $appearanceValue) {
@@ -59,50 +82,58 @@ struct SettingsView: View {
                 }
                 Section("关于") {
                     LabeledContent("协议", value: "Codex app-server JSON-RPC v2")
-                    LabeledContent("版本", value: "0.1.0")
+                    LabeledContent("版本", value: versionText)
                 }
             }
             .scrollContentBackground(.hidden)
         }
         .navigationTitle("设置")
-        .task {
-            await refreshNotificationState()
-            backgroundSnapshot = BackgroundRefreshDiagnostics.snapshot()
+        .onAppear { normalizeConversationDefaults() }
+        .onChange(of: store.models) { _, _ in
+            normalizeConversationDefaults()
+        }
+        .onChange(of: defaultModelID) { _, _ in
+            defaultReasoningEffort = ""
         }
     }
 
-    @ViewBuilder
-    private var notificationAction: some View {
-        switch notificationState {
-        case .notDetermined:
-            Button("允许消息提醒", systemImage: "bell.badge") {
-                Task {
-                    notificationState = await NotificationManager.shared.requestAuthorization()
-                }
-            }
-        case .denied:
-            Button("打开系统通知设置", systemImage: "gear") {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    openURL(url)
-                }
-            }
-        case .enabled, .provisional:
-            Button("发送测试提醒", systemImage: "bell.and.waves.left.and.right") {
-                Task {
-                    do {
-                        try await NotificationManager.shared.notifyTest()
-                        notificationFeedback = "测试提醒已提交，请查看通知横幅或通知中心。"
-                    } catch {
-                        notificationFeedback = "测试提醒失败：\(error.localizedDescription)"
-                    }
-                    await refreshNotificationState()
-                    backgroundSnapshot = BackgroundRefreshDiagnostics.snapshot()
-                }
-            }
+    private var selectedEffortDescription: String? {
+        guard !defaultReasoningEffort.isEmpty else {
+            guard let model = selectedDefaultModel,
+                  let effort = NewConversationDefaults.recommendedReasoningEffort(for: model) else { return nil }
+            return model.reasoningOptions.first { $0.id == effort }?.description
+        }
+        return selectedDefaultModel?.reasoningOptions
+            .first { $0.id == defaultReasoningEffort }?
+            .description
+    }
+
+    private func recommendedEffortLabel(for model: CodexModel) -> String {
+        guard let effort = NewConversationDefaults.recommendedReasoningEffort(for: model),
+              let option = model.reasoningOptions.first(where: { $0.id == effort }) else {
+            return "模型推荐"
+        }
+        return "模型推荐（\(option.displayName)）"
+    }
+
+    private func normalizeConversationDefaults() {
+        guard !store.models.isEmpty else { return }
+        if !defaultModelID.isEmpty,
+           !store.models.contains(where: { $0.model == defaultModelID }) {
+            defaultModelID = ""
+            return
+        }
+        guard let model = selectedDefaultModel else { return }
+        guard defaultReasoningEffort.isEmpty
+                || model.reasoningOptions.contains(where: { $0.id == defaultReasoningEffort }) else {
+            defaultReasoningEffort = ""
+            return
         }
     }
 
-    private func refreshNotificationState() async {
-        notificationState = await NotificationManager.shared.authorizationState()
+    private var versionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+        return build.isEmpty ? version : "\(version) (\(build))"
     }
 }

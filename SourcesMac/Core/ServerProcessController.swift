@@ -72,6 +72,29 @@ struct ProcessLogRedactor {
     }
 }
 
+enum ProcessLogPolicy {
+    static func shouldDisplay(_ line: String) -> Bool {
+        guard let data = line.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["level"] as? String == "WARN",
+              let target = object["target"] as? String,
+              let fields = object["fields"] as? [String: Any],
+              let message = fields["message"] as? String else {
+            return true
+        }
+
+        if target == "codex_app_server_transport::transport::websocket",
+           message.contains("Connection reset without closing handshake") {
+            return false
+        }
+        if target == "codex_app_server::transport",
+           message.hasPrefix("dropping message for disconnected connection:") {
+            return false
+        }
+        return true
+    }
+}
+
 enum CodexExecutableLocator {
     static func locate(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL? {
         var candidates: [String] = []
@@ -212,7 +235,10 @@ final class ServerProcessController: ObservableObject {
 
     private func appendLog(_ text: String) {
         let redacted = ProcessLogRedactor.redact(text)
-        let lines = redacted.split(whereSeparator: \.isNewline).map(String.init)
+        let lines = redacted
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+            .filter(ProcessLogPolicy.shouldDisplay)
         logLines.append(contentsOf: lines)
         if logLines.count > maximumLogLines {
             logLines.removeFirst(logLines.count - maximumLogLines)
