@@ -1,0 +1,34 @@
+# macOS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Xcode user state and local build output
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.xcarchive
+*.xcresult
+*.dSYM
+*.dSYM.zip
+*.ipa
+
+# Swift build caches
+.build/
+.swiftpm/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs, temporary files, and editor leftovers
+*.log
+*.tmp
+*.temp
+*.orig
+*.rej
+*~

@@ -1,0 +1,75 @@
+name: CodeAnywhere
+options:
+  bundleIdPrefix: me.fenglei
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: SA4L8J8X2M
+    CODE_SIGN_STYLE: Automatic
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+    ENABLE_USER_SCRIPT_SANDBOXING: true
+    SWIFT_STRICT_CONCURRENCY: targeted
+targets:
+  CodeAnywhere:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.fenglei.codeanywhere
+        PRODUCT_NAME: CodeAnywhere
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SUPPORTS_MACCATALYST: false
+    info:
+      path: Sources/App/Info.plist
+      properties:
+        CFBundleDisplayName: CodeAnywhere
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        NSLocalNetworkUsageDescription: CodeAnywhere 需要连接同一局域网中的 Codex 桌面端。
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - me.fenglei.codeanywhere.refresh
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+  CodeAnywhereTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: CodeAnywhere
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.fenglei.codeanywhere.tests
+        GENERATE_INFOPLIST_FILE: true
+schemes:
+  CodeAnywhere:
+    build:
+      targets:
+        CodeAnywhere: all
+        CodeAnywhereTests: [test]
+    test:
+      targets:
+        - CodeAnywhereTests

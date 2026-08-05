@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="background" x1="118" y1="92" x2="906" y2="934" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#27B8FF"/>
+      <stop offset="0.48" stop-color="#2674ED"/>
+      <stop offset="1" stop-color="#5B3DE1"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientTransform="translate(512 468) rotate(90) scale(430)">
+      <stop stop-color="#69E4FF" stop-opacity="0.44"/>
+      <stop offset="1" stop-color="#69E4FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="terminal" x1="282" y1="356" x2="748" y2="688" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#102C70" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#172052" stop-opacity="0.98"/>
+    </linearGradient>
+    <linearGradient id="prompt" x1="332" y1="462" x2="668" y2="610" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#87F1FF"/>
+    </linearGradient>
+    <clipPath id="globeClip">
+      <circle cx="512" cy="500" r="302"/>
+    </clipPath>
+    <filter id="panelShadow" x="170" y="284" width="684" height="500" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="30" stdDeviation="30" flood-color="#0B1A58" flood-opacity="0.46"/>
+    </filter>
+    <filter id="nodeGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="0" stdDeviation="14" flood-color="#70F3FF" flood-opacity="0.9"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#background)"/>
+  <circle cx="512" cy="468" r="430" fill="url(#halo)"/>
+  <circle cx="92" cy="98" r="250" fill="#FFFFFF" opacity="0.10"/>
+  <circle cx="952" cy="926" r="300" fill="#48E9D2" opacity="0.10"/>
+
+  <g fill="none" stroke="#D7F7FF" stroke-width="18" stroke-linecap="round">
+    <circle cx="512" cy="500" r="302" stroke-opacity="0.88"/>
+    <g clip-path="url(#globeClip)" stroke-opacity="0.54">
+      <ellipse cx="512" cy="500" rx="142" ry="302"/>
+      <ellipse cx="512" cy="500" rx="302" ry="116"/>
+      <path d="M248 354C332 404 423 428 512 428C602 428 692 404 776 354"/>
+      <path d="M248 646C332 596 423 572 512 572C602 572 692 596 776 646"/>
+    </g>
+  </g>
+
+  <g filter="url(#nodeGlow)">
+    <circle cx="512" cy="198" r="25" fill="#7AF4FF" stroke="#FFFFFF" stroke-width="9"/>
+    <circle cx="232" cy="614" r="25" fill="#7AF4FF" stroke="#FFFFFF" stroke-width="9"/>
+    <circle cx="786" cy="372" r="25" fill="#7AF4FF" stroke="#FFFFFF" stroke-width="9"/>
+  </g>
+
+  <g filter="url(#panelShadow)">
+    <rect x="232" y="330" width="560" height="374" rx="94" fill="url(#terminal)"/>
+    <rect x="237" y="335" width="550" height="364" rx="89" fill="none" stroke="#FFFFFF" stroke-opacity="0.72" stroke-width="10"/>
+  </g>
+
+  <g fill="#93EFFF">
+    <circle cx="318" cy="407" r="14"/>
+    <circle cx="362" cy="407" r="14" opacity="0.72"/>
+    <circle cx="406" cy="407" r="14" opacity="0.48"/>
+  </g>
+  <path d="M346 478L446 548L346 618" fill="none" stroke="url(#prompt)" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M500 619H675" fill="none" stroke="#7AF4FF" stroke-width="50" stroke-linecap="round"/>
+</svg>
