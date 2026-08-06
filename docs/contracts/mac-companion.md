@@ -40,19 +40,17 @@ must not depend on background execution for completion delivery.
 - The Mac app establishes its own authenticated app-server client after launch.
 - A received `turn/completed` server notification is parsed from
   `params.threadId` and `params.turn.id/status`, then enters the same persisted,
-  deduplicated Bark delivery path immediately for completed, failed, or
-  interrupted turns.
+  deduplicated Bark delivery path immediately for completed or failed turns.
 - Polling remains the fallback for turns whose server notification is not
   broadcast to this WebSocket session: `thread/list` finds changed threads and
   `thread/read(includeTurns: true)` reads the authoritative latest Turn.
-- A terminal candidate must have a latest Turn whose status is `completed`,
-  `failed`, or `interrupted`. Idle and unrelated thread timestamp updates never
+- A notification candidate must have a latest Turn whose status is `completed`
+  or `failed`. Interrupted, idle, and unrelated thread timestamp updates never
   create a Bark delivery. When a failed Turn provides `error.message` or
   `error.additionalDetails`, the redacted detail is retained with the pending
   delivery and included in the Bark body.
-- An interrupted Turn is held briefly before delivery; if the same thread
-  becomes active with a replacement Turn during that window, the interruption
-  is treated as user steering and no Bark delivery is created.
+- Interrupted Turns are permanently ignored, including interruptions caused by
+  steering a thread with a new user message.
 - Delivery identity is derived from the Codex Turn ID, so one terminal Turn is
   sent at most once while a later terminal Turn in the same thread remains a
   distinct event.

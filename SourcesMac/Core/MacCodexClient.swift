@@ -55,7 +55,7 @@ enum MacCodexServerEventParser {
             return nil
         }
         let status = MonitoredThreadState(codexStatus: rawStatus)
-        guard status.isTerminal else { return nil }
+        guard status.shouldNotify else { return nil }
         return .turnTerminated(
             MacCodexTurnTerminatedEvent(
                 threadID: threadID,

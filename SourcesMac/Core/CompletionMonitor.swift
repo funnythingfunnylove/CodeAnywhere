@@ -219,7 +219,11 @@ final class CompletionMonitor: ObservableObject {
 
     private func deliverDueNotifications(now: Date) async {
         let due = monitorState.pending.values
-            .filter { $0.attempts < retryPolicy.maximumAttempts && $0.nextAttemptAt <= now }
+            .filter {
+                $0.terminalState.shouldNotify
+                    && $0.attempts < retryPolicy.maximumAttempts
+                    && $0.nextAttemptAt <= now
+            }
             .sorted { $0.threadUpdatedAt < $1.threadUpdatedAt }
         guard !due.isEmpty else { return }
 

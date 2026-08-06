@@ -64,8 +64,8 @@ final class CompletionStateTests: XCTestCase {
         XCTAssertEqual(state.notificationHistory.first?.deliveredAt, baseline)
     }
 
-    func testAllTerminalStatesCreatePendingDeliveries() throws {
-        for terminalState in [MonitoredThreadState.completed, .failed, .interrupted] {
+    func testCompletedAndFailedStatesCreatePendingDeliveries() throws {
+        for terminalState in [MonitoredThreadState.completed, .failed] {
             var state = CompletionMonitorState(baseline: baseline)
             CompletionDetector.observe(
                 snapshots: [snapshot(id: "thread-terminal", updatedAt: 1_010, state: .active)],
@@ -83,7 +83,7 @@ final class CompletionStateTests: XCTestCase {
         }
     }
 
-    func testInterruptedTurnSupersededByNewActiveTurnDoesNotCreateReminder() {
+    func testInterruptedTurnFromServerEventNeverCreatesReminder() {
         var state = CompletionMonitorState(baseline: baseline)
         CompletionDetector.observeTurnTerminated(
             MacCodexTurnTerminatedEvent(
@@ -95,33 +95,46 @@ final class CompletionStateTests: XCTestCase {
             state: &state,
             now: baseline
         )
-        XCTAssertEqual(state.pending.count, 1)
-
-        CompletionDetector.observe(
-            snapshots: [snapshot(id: "thread-steered", updatedAt: 1_001, state: .active, turnID: "turn-new")],
-            state: &state,
-            now: baseline.addingTimeInterval(1)
-        )
-
         XCTAssertTrue(state.pending.isEmpty)
     }
 
-    func testInterruptedTurnRemainsPendingWhenNoReplacementAppears() throws {
+    func testInterruptedTurnFromPollingNeverCreatesReminder() {
         var state = CompletionMonitorState(baseline: baseline)
-        CompletionDetector.observeTurnTerminated(
-            MacCodexTurnTerminatedEvent(
-                threadID: "thread-cancelled",
-                turnID: "turn-interrupted",
-                status: .interrupted
-            ),
-            title: "手动中断",
+        CompletionDetector.observe(
+            snapshots: [snapshot(id: "thread-cancelled", updatedAt: 1_001, state: .active)],
             state: &state,
-            now: baseline
+            now: baseline.addingTimeInterval(1)
+        )
+        CompletionDetector.observe(
+            snapshots: [snapshot(id: "thread-cancelled", updatedAt: 1_002, state: .interrupted)],
+            state: &state,
+            now: baseline.addingTimeInterval(2)
+        )
+        XCTAssertTrue(state.pending.isEmpty)
+        XCTAssertNil(state.active["thread-cancelled"])
+    }
+
+    func testLegacyInterruptedPendingDeliveryIsPurgedBeforeMonitoring() {
+        let interrupted = PendingCompletionDelivery(
+            id: "interrupted-event",
+            threadID: "thread-cancelled",
+            title: "Codex 已中断",
+            body: "手动中断",
+            group: "CodeAnywhere",
+            deepLink: "codeanywhere://thread/thread-cancelled",
+            terminalState: .interrupted,
+            threadUpdatedAt: baseline,
+            attempts: 0,
+            nextAttemptAt: baseline
+        )
+        var state = CompletionMonitorState(
+            baseline: baseline,
+            pending: [interrupted.id: interrupted]
         )
 
-        let delivery = try XCTUnwrap(state.pending.values.first)
-        XCTAssertEqual(delivery.terminalState, .interrupted)
-        XCTAssertGreaterThan(delivery.nextAttemptAt, baseline)
+        CompletionDetector.prepareForMonitoring(state: &state, now: baseline, maximumAttempts: 5)
+
+        XCTAssertTrue(state.pending.isEmpty)
     }
 
     func testCompletedStateCannotNotifyAgainWithoutAnotherActiveTransition() throws {
@@ -315,19 +328,10 @@ final class CompletionStateTests: XCTestCase {
         )
     }
 
-    func testInterruptedServerNotificationIsTerminal() {
+    func testInterruptedServerNotificationIsIgnored() {
         let data = Data(#"{"method":"turn/completed","params":{"threadId":"thread-event","turn":{"id":"turn-event","status":"interrupted","items":[]}}}"#.utf8)
 
-        XCTAssertEqual(
-            MacCodexServerEventParser.parse(data: data),
-            .turnTerminated(
-                MacCodexTurnTerminatedEvent(
-                    threadID: "thread-event",
-                    turnID: "turn-event",
-                    status: .interrupted
-                )
-            )
-        )
+        XCTAssertNil(MacCodexServerEventParser.parse(data: data))
     }
 
     func testInProgressServerNotificationIsIgnored() {
