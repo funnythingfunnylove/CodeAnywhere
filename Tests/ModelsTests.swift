@@ -230,6 +230,99 @@ final class ModelsTests: XCTestCase {
         let turnStartParams = try XCTUnwrap(recordedTurnStartParams)
         XCTAssertEqual(turnStartParams["model"]?.stringValue, "gpt-5")
         XCTAssertEqual(turnStartParams["effort"]?.stringValue, "high")
+        XCTAssertEqual(turnStartParams["approvalPolicy"]?.stringValue, "never")
+        XCTAssertEqual(
+            turnStartParams["sandboxPolicy"]?["type"]?.stringValue,
+            "dangerFullAccess"
+        )
+    }
+
+    @MainActor
+    func testNewConversationAndFirstTurnUseFullAccessWithoutApprovals() async throws {
+        let client = RecordingCodexClient()
+        let suiteName = "CodeAnywhereTests.FullAccess.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = RemoteCodexStore(client: client, defaults: defaults)
+
+        _ = try await store.createConversation(
+            path: "/tmp/project",
+            prompt: "开始任务",
+            modelID: "gpt-5",
+            effort: "high"
+        )
+
+        let recordedThreadStartParams = await client.recordedThreadStartParams()
+        let threadStartParams = try XCTUnwrap(recordedThreadStartParams)
+        XCTAssertEqual(threadStartParams["sandbox"]?.stringValue, "danger-full-access")
+        XCTAssertEqual(threadStartParams["approvalPolicy"]?.stringValue, "never")
+
+        let recordedTurnStartParams = await client.recordedTurnStartParams()
+        let turnStartParams = try XCTUnwrap(recordedTurnStartParams)
+        XCTAssertEqual(turnStartParams["approvalPolicy"]?.stringValue, "never")
+        XCTAssertEqual(
+            turnStartParams["sandboxPolicy"]?["type"]?.stringValue,
+            "dangerFullAccess"
+        )
+    }
+
+    func testSandboxApprovalServerRequestsAreAutomaticallyAccepted() throws {
+        for method in [
+            "item/commandExecution/requestApproval",
+            "item/fileChange/requestApproval"
+        ] {
+            let request = JSONValue.object([
+                "id": .number(9_001),
+                "method": .string(method),
+                "params": .object([
+                    "threadId": .string("thread-1"),
+                    "turnId": .string("turn-1"),
+                    "itemId": .string("item-1")
+                ])
+            ])
+
+            let response = try XCTUnwrap(CodexAutomaticServerRequestResponder.response(for: request))
+
+            XCTAssertEqual(response["id"]?.intValue, 9_001)
+            XCTAssertEqual(response["result"]?["decision"]?.stringValue, "accept")
+        }
+    }
+
+    func testWebSocketClientRoutesAndSendsSandboxApprovalResponse() async throws {
+        let sink = ServerResponseTextSink()
+        let client = CodexWebSocketClient(
+            endpoint: .fallback,
+            serverResponseTextSender: { text in
+                await sink.append(text)
+            }
+        )
+        let request = JSONValue.object([
+            "id": .string("approval-1"),
+            "method": .string("item/commandExecution/requestApproval"),
+            "params": .object([
+                "threadId": .string("thread-1"),
+                "turnId": .string("turn-1"),
+                "itemId": .string("item-1")
+            ])
+        ])
+
+        await client.handle(data: try JSONEncoder().encode(request))
+
+        let recordedText = await sink.first()
+        let text = try XCTUnwrap(recordedText)
+        let response = try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))
+        XCTAssertEqual(response["id"]?.stringValue, "approval-1")
+        XCTAssertEqual(response["result"]?["decision"]?.stringValue, "accept")
+    }
+
+    func testUnrelatedServerRequestsAreNotAutomaticallyAccepted() {
+        let request = JSONValue.object([
+            "id": .number(9_002),
+            "method": .string("mcpServer/elicitation/request"),
+            "params": .object([:])
+        ])
+
+        XCTAssertNil(CodexAutomaticServerRequestResponder.response(for: request))
     }
 
     @MainActor
@@ -659,7 +752,9 @@ private actor RecordingCodexClient: CodexClientProtocol {
     }
 
     private var methods: [String] = []
+    private var startedThreadIDs: Set<String> = []
     private var resumedThreadIDs: Set<String> = []
+    private var threadStartParams: [String: JSONValue]?
     private var turnStartParams: [String: JSONValue]?
 
     func connect() async throws -> String { "Test Codex" }
@@ -669,6 +764,10 @@ private actor RecordingCodexClient: CodexClientProtocol {
     func call(method: String, params: [String: JSONValue]) async throws -> JSONValue {
         methods.append(method)
         switch method {
+        case "thread/start":
+            threadStartParams = params
+            startedThreadIDs.insert(Self.threadJSON["id"]?.stringValue ?? "")
+            return .object(["thread": Self.threadJSON])
         case "thread/resume":
             if let threadID = params["threadId"]?.stringValue {
                 resumedThreadIDs.insert(threadID)
@@ -676,7 +775,7 @@ private actor RecordingCodexClient: CodexClientProtocol {
             return .object(["thread": Self.threadJSON])
         case "turn/start":
             guard let threadID = params["threadId"]?.stringValue,
-                  resumedThreadIDs.contains(threadID) else {
+                  resumedThreadIDs.contains(threadID) || startedThreadIDs.contains(threadID) else {
                 throw CodexClientError.server(code: -32000, message: "thread not found")
             }
             turnStartParams = params
@@ -693,6 +792,7 @@ private actor RecordingCodexClient: CodexClientProtocol {
     }
 
     func recordedMethods() -> [String] { methods }
+    func recordedThreadStartParams() -> [String: JSONValue]? { threadStartParams }
     func recordedTurnStartParams() -> [String: JSONValue]? { turnStartParams }
 
     private static let threadJSON: JSONValue = .object([
@@ -704,4 +804,16 @@ private actor RecordingCodexClient: CodexClientProtocol {
         "status": .object(["type": .string("idle")]),
         "turns": .array([])
     ])
+}
+
+private actor ServerResponseTextSink {
+    private var values: [String] = []
+
+    func append(_ value: String) {
+        values.append(value)
+    }
+
+    func first() -> String? {
+        values.first
+    }
 }

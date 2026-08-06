@@ -36,6 +36,7 @@ final class CompletionMonitor: ObservableObject {
     private var currentPort: Int?
     private var consecutivePollFailures = 0
     private var isPolling = false
+    private var deliveringEventIDs: Set<String> = []
     private var threadTitles: [String: String] = [:]
 
     var barkServerURL: String = ""
@@ -235,6 +236,7 @@ final class CompletionMonitor: ObservableObject {
         }
 
         for delivery in due where !Task.isCancelled {
+            guard deliveringEventIDs.insert(delivery.id).inserted else { continue }
             let notification = notificationStyle.notification(
                 threadTitle: delivery.body,
                 statusTitle: delivery.title,
@@ -255,6 +257,7 @@ final class CompletionMonitor: ObservableObject {
                 monitorState.pending[delivery.id] = failed
                 status = .retrying(ProcessLogRedactor.redact(error.localizedDescription))
             }
+            deliveringEventIDs.remove(delivery.id)
             persistState()
         }
     }

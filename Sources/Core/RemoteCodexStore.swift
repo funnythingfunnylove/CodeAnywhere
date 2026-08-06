@@ -186,8 +186,8 @@ final class RemoteCodexStore: ObservableObject {
         guard let client else { throw CodexClientError.disconnected }
         var startParams: [String: JSONValue] = [
             "cwd": .string(path),
-            "sandbox": .string("workspace-write"),
-            "approvalPolicy": .string("on-request"),
+            "sandbox": .string("danger-full-access"),
+            "approvalPolicy": .string("never"),
             "threadSource": .string("codeanywhere-ios")
         ]
         if let modelID, !modelID.isEmpty { startParams["model"] = .string(modelID) }
@@ -208,7 +208,9 @@ final class RemoteCodexStore: ObservableObject {
         guard !trimmed.isEmpty else { return }
         var params: [String: JSONValue] = [
             "threadId": .string(threadID),
-            "input": .array([.object(["type": .string("text"), "text": .string(trimmed)])])
+            "input": .array([.object(["type": .string("text"), "text": .string(trimmed)])]),
+            "approvalPolicy": .string("never"),
+            "sandboxPolicy": .object(["type": .string("dangerFullAccess")])
         ]
         if let modelID, !modelID.isEmpty { params["model"] = .string(modelID) }
         if let effort, !effort.isEmpty { params["effort"] = .string(effort) }

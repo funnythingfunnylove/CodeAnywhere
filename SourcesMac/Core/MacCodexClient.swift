@@ -57,6 +57,14 @@ extension MacCodexClientProtocol {
     func setEventHandler(_ handler: (@Sendable (MacCodexServerEvent) -> Void)?) async {}
 }
 
+enum MacCodexWebSocketConfiguration {
+    static let maximumMessageSize = 32 * 1_024 * 1_024
+
+    static func apply(to task: URLSessionWebSocketTask) {
+        task.maximumMessageSize = maximumMessageSize
+    }
+}
+
 actor MacCodexWebSocketClient: MacCodexClientProtocol {
     private let port: Int
     private let session: URLSession
@@ -90,6 +98,7 @@ actor MacCodexWebSocketClient: MacCodexClientProtocol {
             forHTTPHeaderField: "Authorization"
         )
         let task = session.webSocketTask(with: request)
+        MacCodexWebSocketConfiguration.apply(to: task)
         socket = task
         task.resume()
         listener = Task { await receiveLoop() }

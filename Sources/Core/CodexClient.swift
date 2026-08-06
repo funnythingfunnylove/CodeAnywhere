@@ -31,10 +31,28 @@ protocol CodexClientProtocol: Sendable {
     func call(method: String, params: [String: JSONValue]) async throws -> JSONValue
 }
 
+enum CodexAutomaticServerRequestResponder {
+    static func response(for message: JSONValue) -> JSONValue? {
+        guard let requestID = message["id"],
+              let method = message["method"]?.stringValue else { return nil }
+
+        switch method {
+        case "item/commandExecution/requestApproval", "item/fileChange/requestApproval":
+            return .object([
+                "id": requestID,
+                "result": .object(["decision": .string("accept")])
+            ])
+        default:
+            return nil
+        }
+    }
+}
+
 actor CodexWebSocketClient: CodexClientProtocol {
     nonisolated let notifications: AsyncStream<RPCNotification>
 
     private let endpoint: ServerEndpoint
+    private let serverResponseTextSender: (@Sendable (String) async throws -> Void)?
     private let notificationContinuation: AsyncStream<RPCNotification>.Continuation
     private var socket: URLSessionWebSocketTask?
     private var listener: Task<Void, Never>?
@@ -42,8 +60,12 @@ actor CodexWebSocketClient: CodexClientProtocol {
     private var pending: [Int: CheckedContinuation<JSONValue, Error>] = [:]
     private var timeoutTasks: [Int: Task<Void, Never>] = [:]
 
-    init(endpoint: ServerEndpoint) {
+    init(
+        endpoint: ServerEndpoint,
+        serverResponseTextSender: (@Sendable (String) async throws -> Void)? = nil
+    ) {
         self.endpoint = endpoint
+        self.serverResponseTextSender = serverResponseTextSender
         var continuation: AsyncStream<RPCNotification>.Continuation!
         notifications = AsyncStream { continuation = $0 }
         notificationContinuation = continuation
@@ -149,7 +171,7 @@ actor CodexWebSocketClient: CodexClientProtocol {
                 case .string(let value): data = Data(value.utf8)
                 @unknown default: continue
                 }
-                handle(data: data)
+                await handle(data: data)
             } catch {
                 if !Task.isCancelled {
                     notificationContinuation.yield(RPCNotification(method: "transport/closed", params: .string(error.localizedDescription)))
@@ -160,8 +182,12 @@ actor CodexWebSocketClient: CodexClientProtocol {
         }
     }
 
-    private func handle(data: Data) {
+    func handle(data: Data) async {
         guard let message = try? JSONDecoder().decode(JSONValue.self, from: data) else { return }
+        if let response = CodexAutomaticServerRequestResponder.response(for: message) {
+            await sendServerResponse(response)
+            return
+        }
         if let id = message["id"]?.intValue {
             if let error = message["error"] {
                 let code = error["code"]?.intValue ?? -1
@@ -175,6 +201,25 @@ actor CodexWebSocketClient: CodexClientProtocol {
 
         guard let method = message["method"]?.stringValue else { return }
         notificationContinuation.yield(RPCNotification(method: method, params: message["params"] ?? .null))
+    }
+
+    private func sendServerResponse(_ response: JSONValue) async {
+        guard let data = try? JSONEncoder().encode(response),
+              let text = String(data: data, encoding: .utf8) else { return }
+        do {
+            if let serverResponseTextSender {
+                try await serverResponseTextSender(text)
+            } else if let socket {
+                try await socket.send(.string(text))
+            }
+        } catch {
+            if !Task.isCancelled {
+                notificationContinuation.yield(
+                    RPCNotification(method: "transport/closed", params: .string(error.localizedDescription))
+                )
+                failAll(with: CodexClientError.transport(error.localizedDescription))
+            }
+        }
     }
 
     private func resume(requestID: Int, with result: Result<JSONValue, Error>) {

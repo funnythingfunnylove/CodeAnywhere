@@ -207,6 +207,15 @@ final class CompletionStateTests: XCTestCase {
         )
     }
 
+    func testMacWebSocketAllowsLargeThreadResponses() {
+        let task = URLSession.shared.webSocketTask(with: URL(string: "ws://127.0.0.1:4500/")!)
+
+        MacCodexWebSocketConfiguration.apply(to: task)
+
+        XCTAssertEqual(task.maximumMessageSize, 32 * 1_024 * 1_024)
+        XCTAssertGreaterThan(task.maximumMessageSize, 2 * 1_024 * 1_024)
+    }
+
     func testNonCompletedServerNotificationIsIgnored() {
         let data = Data(#"{"method":"turn/completed","params":{"threadId":"thread-event","turn":{"id":"turn-event","status":"failed","items":[]}}}"#.utf8)
         XCTAssertNil(MacCodexServerEventParser.parse(data: data))
@@ -310,7 +319,7 @@ final class CompletionStateTests: XCTestCase {
         let persistence = InMemoryCompletionStateStore(
             state: CompletionMonitorState(baseline: baseline)
         )
-        let sender = RecordingBarkSender()
+        let sender = SlowRecordingBarkSender()
         let client = EventingCompletionClient()
         let monitor = CompletionMonitor(
             persistence: persistence,
@@ -335,7 +344,10 @@ final class CompletionStateTests: XCTestCase {
                 MacCodexTurnCompletedEvent(threadID: "thread-event", turnID: "turn-event")
             )
         )
-        try await Task.sleep(for: .milliseconds(100))
+        try await Task.sleep(for: .milliseconds(50))
+        let inFlightDeliveryCount = await sender.count
+        XCTAssertEqual(inFlightDeliveryCount, 1)
+        try await waitUntil(timeout: 2) { monitor.notificationHistory.count == 1 }
         let deliveryCount = await sender.count
         XCTAssertEqual(deliveryCount, 1)
         XCTAssertEqual(monitor.notificationHistory.first?.threadID, "thread-event")
@@ -405,6 +417,19 @@ private actor RecordingBarkSender: BarkSending {
         serverURL: String
     ) async throws {
         count += 1
+    }
+}
+
+private actor SlowRecordingBarkSender: BarkSending {
+    private(set) var count = 0
+
+    func send(
+        _ notification: BarkNotification,
+        deviceKey: String,
+        serverURL: String
+    ) async throws {
+        count += 1
+        try await Task.sleep(for: .milliseconds(150))
     }
 }
 
