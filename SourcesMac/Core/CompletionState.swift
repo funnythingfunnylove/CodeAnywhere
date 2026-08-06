@@ -230,6 +230,8 @@ struct CompletionMonitorState: Codable, Equatable, Sendable {
 }
 
 enum CompletionDetector {
+    static let interruptedReplacementGracePeriod: TimeInterval = 3
+
     static func prepareForMonitoring(
         state: inout CompletionMonitorState,
         now: Date,
@@ -250,6 +252,7 @@ enum CompletionDetector {
         let previousBaseline = state.baseline
         for snapshot in snapshots {
             if snapshot.state == .active {
+                cancelSupersededInterruptions(for: snapshot.id, state: &state)
                 if var observation = state.active[snapshot.id] {
                     observation.latestUpdatedAt = max(observation.latestUpdatedAt, snapshot.updatedAt)
                     state.active[snapshot.id] = observation
@@ -282,7 +285,7 @@ enum CompletionDetector {
                 terminalState: snapshot.state,
                 threadUpdatedAt: snapshot.updatedAt,
                 attempts: 0,
-                nextAttemptAt: now
+                nextAttemptAt: nextAttemptDate(for: snapshot.state, now: now)
             )
         }
         if let latestUpdate = snapshots.map(\.updatedAt).max() {
@@ -311,8 +314,23 @@ enum CompletionDetector {
             terminalState: event.status,
             threadUpdatedAt: now,
             attempts: 0,
-            nextAttemptAt: now
+            nextAttemptAt: nextAttemptDate(for: event.status, now: now)
         )
+    }
+
+    private static func nextAttemptDate(for state: MonitoredThreadState, now: Date) -> Date {
+        state == .interrupted
+            ? now.addingTimeInterval(interruptedReplacementGracePeriod)
+            : now
+    }
+
+    private static func cancelSupersededInterruptions(
+        for threadID: String,
+        state: inout CompletionMonitorState
+    ) {
+        state.pending = state.pending.filter { _, delivery in
+            !(delivery.threadID == threadID && delivery.terminalState == .interrupted)
+        }
     }
 
     static func markDelivered(

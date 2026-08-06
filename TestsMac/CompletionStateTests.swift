@@ -83,6 +83,47 @@ final class CompletionStateTests: XCTestCase {
         }
     }
 
+    func testInterruptedTurnSupersededByNewActiveTurnDoesNotCreateReminder() {
+        var state = CompletionMonitorState(baseline: baseline)
+        CompletionDetector.observeTurnTerminated(
+            MacCodexTurnTerminatedEvent(
+                threadID: "thread-steered",
+                turnID: "turn-interrupted",
+                status: .interrupted
+            ),
+            title: "被新消息接管",
+            state: &state,
+            now: baseline
+        )
+        XCTAssertEqual(state.pending.count, 1)
+
+        CompletionDetector.observe(
+            snapshots: [snapshot(id: "thread-steered", updatedAt: 1_001, state: .active, turnID: "turn-new")],
+            state: &state,
+            now: baseline.addingTimeInterval(1)
+        )
+
+        XCTAssertTrue(state.pending.isEmpty)
+    }
+
+    func testInterruptedTurnRemainsPendingWhenNoReplacementAppears() throws {
+        var state = CompletionMonitorState(baseline: baseline)
+        CompletionDetector.observeTurnTerminated(
+            MacCodexTurnTerminatedEvent(
+                threadID: "thread-cancelled",
+                turnID: "turn-interrupted",
+                status: .interrupted
+            ),
+            title: "手动中断",
+            state: &state,
+            now: baseline
+        )
+
+        let delivery = try XCTUnwrap(state.pending.values.first)
+        XCTAssertEqual(delivery.terminalState, .interrupted)
+        XCTAssertGreaterThan(delivery.nextAttemptAt, baseline)
+    }
+
     func testCompletedStateCannotNotifyAgainWithoutAnotherActiveTransition() throws {
         var state = CompletionMonitorState(baseline: baseline)
         CompletionDetector.observe(

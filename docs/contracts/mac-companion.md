@@ -50,6 +50,9 @@ must not depend on background execution for completion delivery.
   create a Bark delivery. When a failed Turn provides `error.message` or
   `error.additionalDetails`, the redacted detail is retained with the pending
   delivery and included in the Bark body.
+- An interrupted Turn is held briefly before delivery; if the same thread
+  becomes active with a replacement Turn during that window, the interruption
+  is treated as user steering and no Bark delivery is created.
 - Delivery identity is derived from the Codex Turn ID, so one terminal Turn is
   sent at most once while a later terminal Turn in the same thread remains a
   distinct event.
