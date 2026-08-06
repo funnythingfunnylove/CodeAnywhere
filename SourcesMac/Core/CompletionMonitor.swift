@@ -39,6 +39,7 @@ final class CompletionMonitor: ObservableObject {
     private var threadTitles: [String: String] = [:]
 
     var barkServerURL: String = ""
+    var notificationStyle: BarkNotificationStyle = .codexDefault
 
     init(
         persistence: any CompletionStatePersisting = FileCompletionStateStore(),
@@ -234,10 +235,10 @@ final class CompletionMonitor: ObservableObject {
         }
 
         for delivery in due where !Task.isCancelled {
-            let notification = BarkNotification(
-                title: delivery.title,
-                body: delivery.body,
-                group: delivery.group,
+            let notification = notificationStyle.notification(
+                threadTitle: delivery.body,
+                statusTitle: delivery.title,
+                completedAt: delivery.threadUpdatedAt,
                 url: delivery.deepLink,
                 id: delivery.id
             )

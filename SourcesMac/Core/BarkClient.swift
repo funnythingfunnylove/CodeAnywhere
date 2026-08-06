@@ -19,14 +19,6 @@ enum BarkDeliveryError: LocalizedError, Equatable {
     }
 }
 
-struct BarkNotification: Equatable, Sendable {
-    let title: String
-    let body: String
-    let group: String
-    let url: String
-    let id: String
-}
-
 enum BarkNotificationIdentifier {
     static let maximumUTF8Length = 64
 
@@ -105,20 +97,6 @@ protocol BarkSending: Sendable {
 }
 
 struct BarkClient: BarkSending, Sendable {
-    private struct Payload: Encodable {
-        let deviceKey: String
-        let title: String
-        let body: String
-        let group: String
-        let url: String
-        let id: String
-
-        enum CodingKeys: String, CodingKey {
-            case deviceKey = "device_key"
-            case title, body, group, url, id
-        }
-    }
-
     private let session: URLSession
 
     init(session: URLSession = .shared) {
@@ -134,15 +112,9 @@ struct BarkClient: BarkSending, Sendable {
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            Payload(
-                deviceKey: deviceKey,
-                title: notification.title,
-                body: notification.body,
-                group: notification.group,
-                url: notification.url,
-                id: BarkNotificationIdentifier.normalized(notification.id)
-            )
+        request.httpBody = try BarkPushPayload.encodedData(
+            notification: notification,
+            deviceKey: deviceKey
         )
 
         let data: Data
@@ -156,5 +128,44 @@ struct BarkClient: BarkSending, Sendable {
             throw BarkDeliveryError.malformedResponse
         }
         try BarkResponseEvaluator.validate(statusCode: httpResponse.statusCode, data: data)
+    }
+}
+
+struct BarkPushPayload: Encodable {
+    let deviceKey: String
+    let title: String
+    let subtitle: String?
+    let body: String?
+    let markdown: String?
+    let level: String
+    let volume: Int?
+    let sound: String?
+    let icon: String?
+    let group: String
+    let url: String
+    let id: String
+
+    enum CodingKeys: String, CodingKey {
+        case deviceKey = "device_key"
+        case title, subtitle, body, markdown, level, volume, sound, icon, group, url, id
+    }
+
+    static func encodedData(notification: BarkNotification, deviceKey: String) throws -> Data {
+        try JSONEncoder().encode(
+            BarkPushPayload(
+                deviceKey: deviceKey,
+                title: notification.title,
+                subtitle: notification.subtitle,
+                body: notification.usesMarkdown ? nil : notification.body,
+                markdown: notification.usesMarkdown ? notification.body : nil,
+                level: notification.level.rawValue,
+                volume: notification.volume,
+                sound: notification.sound,
+                icon: notification.icon,
+                group: notification.group,
+                url: notification.url,
+                id: BarkNotificationIdentifier.normalized(notification.id)
+            )
+        )
     }
 }

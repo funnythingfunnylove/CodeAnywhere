@@ -10,6 +10,7 @@
 		029195290EB019F9D4ACBCCF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8885F83B1F01D570EE05618E /* Assets.xcassets */; };
 		0DAD789327A32E47B75DE393 /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75CE409448A13D8402E82EEF /* ConnectionView.swift */; };
 		15255E3F69A4AFAA16B4AC44 /* AppIcon.svg in Resources */ = {isa = PBXBuildFile; fileRef = 24958086858F22298FBC6E33 /* AppIcon.svg */; };
+		173E8BD3040BE0BC14B42B6F /* BarkNotificationStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2D01512FEA34B0B75A4374 /* BarkNotificationStyle.swift */; };
 		1A8ED0E0B406A162D1DCC8D8 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F55DAD11A195B14C816EDC05 /* PrivacyInfo.xcprivacy */; };
 		1B90DFAB351070CBE72DF34F /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC9B6F6031900E1D1B3D11BA /* JSONValue.swift */; };
 		210B242158424DA7806BCEEA /* ServerProcessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B8DCD4AF7005B0D477016F5 /* ServerProcessController.swift */; };
@@ -17,8 +18,10 @@
 		2D1997E9626ED7D54BFAD74C /* MessageFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE15CD4F08B5322C9A1252DE /* MessageFormatting.swift */; };
 		2D75BD689504A937D7E705BC /* CodexClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B915C0F8C4E05E4D369EB9AF /* CodexClient.swift */; };
 		3C85297DDC2DF3A19EA6C637 /* ProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A0A2D39375F8A681CD6F2B /* ProjectsView.swift */; };
+		3F3CC997694E4E0DC6D62337 /* CodexInstallationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3828A26A92E38D6B1F36F49 /* CodexInstallationController.swift */; };
 		43B4E9A2088A2B751FF8C6E4 /* ServerProcessControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B79557726CCA887697B571D9 /* ServerProcessControllerTests.swift */; };
 		4B3447CBAF752056EF2AAE64 /* BarkContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5D4B1691372A07AD163698A /* BarkContractTests.swift */; };
+		4F2765AC9CFF96518ED61D8F /* LocalNetworkAddressResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C8BEE573F511300C8C7247F /* LocalNetworkAddressResolver.swift */; };
 		54E3265CACFDB215F61F2BEA /* KeychainDeviceKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0409E3B52F30B2EFD7459BCA /* KeychainDeviceKeyStore.swift */; };
 		5769480F9745DAC6E6A65A83 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF6854B70281CCC68E43221 /* Models.swift */; };
 		6427F47898A77FC253B640E8 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 832CDA649626AE698083757A /* RootView.swift */; };
@@ -27,6 +30,7 @@
 		6E7C92B059A150D5EAFEF502 /* CompletionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785C56F8246F566EFFA53A46 /* CompletionStateTests.swift */; };
 		73516C9472231D5200462884 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356611AE2C24C5912EBEAC8A /* SessionsView.swift */; };
 		76258289800CB73128BB756A /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CED5697F983BB9F84350F39 /* DesignSystem.swift */; };
+		76E702E8EACCADE74DFB7B1B /* CodexInstallationControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2964DBE3F92D8003A13AD6D /* CodexInstallationControllerTests.swift */; };
 		779DD53D1665D1E8E139F941 /* CompletionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C3591CAC09A2DB76F9C55EF /* CompletionState.swift */; };
 		788BF1AFC05C201CF922D4EF /* CompletionMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3ADA2792DCE8CE66F2DD006 /* CompletionMonitor.swift */; };
 		854E53E722A7DA80DBD15ED4 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 252AABC9F5D8398AB5B4196A /* ChatView.swift */; };
@@ -42,6 +46,7 @@
 		E6A5B491A72F4C93A9B6B41A /* AppearancePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF64C31330F25D9F1559829 /* AppearancePreference.swift */; };
 		E8A3FA520C1012AFA9C7259D /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7BAAC0F8E8EE143FA794B4 /* ModelsTests.swift */; };
 		F447B744AEB4522E555A9EA7 /* MacDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 597229C873BB1783F75F66EC /* MacDashboardView.swift */; };
+		F6A758DB3C819A031B711A78 /* BarkNotificationStyleIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64BD04378056D3C6E53E719D /* BarkNotificationStyleIntegrationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +87,8 @@
 		4D2BE4BEC4ABF35A2FE810AA /* MacCodexClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCodexClient.swift; sourceTree = "<group>"; };
 		5393E3D94EC232DF9C6E70DD /* ThreadTurnStarter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadTurnStarter.swift; sourceTree = "<group>"; };
 		597229C873BB1783F75F66EC /* MacDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDashboardView.swift; sourceTree = "<group>"; };
+		5C8BEE573F511300C8C7247F /* LocalNetworkAddressResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNetworkAddressResolver.swift; sourceTree = "<group>"; };
+		64BD04378056D3C6E53E719D /* BarkNotificationStyleIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarkNotificationStyleIntegrationTests.swift; sourceTree = "<group>"; };
 		6875635982EDAD4F8CEC4B25 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7316E2DABF84742F0BF812DE /* CodeAnywhereMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodeAnywhereMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		74356C8BAC7F47EB583393C8 /* CodeAnywhereApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeAnywhereApp.swift; sourceTree = "<group>"; };
@@ -97,8 +104,11 @@
 		B79557726CCA887697B571D9 /* ServerProcessControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessControllerTests.swift; sourceTree = "<group>"; };
 		B915C0F8C4E05E4D369EB9AF /* CodexClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexClient.swift; sourceTree = "<group>"; };
 		BBEAFF901967BCB2AEB32399 /* MacJSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacJSONValue.swift; sourceTree = "<group>"; };
+		C2964DBE3F92D8003A13AD6D /* CodexInstallationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexInstallationControllerTests.swift; sourceTree = "<group>"; };
+		D3828A26A92E38D6B1F36F49 /* CodexInstallationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexInstallationController.swift; sourceTree = "<group>"; };
 		D3ADA2792DCE8CE66F2DD006 /* CompletionMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionMonitor.swift; sourceTree = "<group>"; };
 		D5D4B1691372A07AD163698A /* BarkContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarkContractTests.swift; sourceTree = "<group>"; };
+		DE2D01512FEA34B0B75A4374 /* BarkNotificationStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarkNotificationStyle.swift; sourceTree = "<group>"; };
 		EC9B6F6031900E1D1B3D11BA /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
 		EF8CE282945C656F15522A01 /* NewConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewConversationView.swift; sourceTree = "<group>"; };
 		F55DAD11A195B14C816EDC05 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -109,6 +119,8 @@
 			isa = PBXGroup;
 			children = (
 				D5D4B1691372A07AD163698A /* BarkContractTests.swift */,
+				64BD04378056D3C6E53E719D /* BarkNotificationStyleIntegrationTests.swift */,
+				C2964DBE3F92D8003A13AD6D /* CodexInstallationControllerTests.swift */,
 				785C56F8246F566EFFA53A46 /* CompletionStateTests.swift */,
 				1339A7292A8682CA8CB5E2DD /* ProcessLogRedactorTests.swift */,
 				B79557726CCA887697B571D9 /* ServerProcessControllerTests.swift */,
@@ -154,9 +166,12 @@
 			isa = PBXGroup;
 			children = (
 				888A188F360741D1BE79120E /* BarkClient.swift */,
+				DE2D01512FEA34B0B75A4374 /* BarkNotificationStyle.swift */,
+				D3828A26A92E38D6B1F36F49 /* CodexInstallationController.swift */,
 				D3ADA2792DCE8CE66F2DD006 /* CompletionMonitor.swift */,
 				2C3591CAC09A2DB76F9C55EF /* CompletionState.swift */,
 				0409E3B52F30B2EFD7459BCA /* KeychainDeviceKeyStore.swift */,
+				5C8BEE573F511300C8C7247F /* LocalNetworkAddressResolver.swift */,
 				4D2BE4BEC4ABF35A2FE810AA /* MacCodexClient.swift */,
 				BBEAFF901967BCB2AEB32399 /* MacJSONValue.swift */,
 				1B8DCD4AF7005B0D477016F5 /* ServerProcessController.swift */,
@@ -406,6 +421,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				4B3447CBAF752056EF2AAE64 /* BarkContractTests.swift in Sources */,
+				F6A758DB3C819A031B711A78 /* BarkNotificationStyleIntegrationTests.swift in Sources */,
+				76E702E8EACCADE74DFB7B1B /* CodexInstallationControllerTests.swift in Sources */,
 				6E7C92B059A150D5EAFEF502 /* CompletionStateTests.swift in Sources */,
 				2780570A21D1B053FDF6D584 /* ProcessLogRedactorTests.swift in Sources */,
 				43B4E9A2088A2B751FF8C6E4 /* ServerProcessControllerTests.swift in Sources */,
@@ -417,10 +434,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				93BD43DD1B80A5D478A9DDB7 /* BarkClient.swift in Sources */,
+				173E8BD3040BE0BC14B42B6F /* BarkNotificationStyle.swift in Sources */,
 				85B348A8B30D9D7528FBF04B /* CodeAnywhereMacApp.swift in Sources */,
+				3F3CC997694E4E0DC6D62337 /* CodexInstallationController.swift in Sources */,
 				788BF1AFC05C201CF922D4EF /* CompletionMonitor.swift in Sources */,
 				779DD53D1665D1E8E139F941 /* CompletionState.swift in Sources */,
 				54E3265CACFDB215F61F2BEA /* KeychainDeviceKeyStore.swift in Sources */,
+				4F2765AC9CFF96518ED61D8F /* LocalNetworkAddressResolver.swift in Sources */,
 				C3A3611325E395C401FF4436 /* MacAppModel.swift in Sources */,
 				E4D652B28B3DA2F62A471540 /* MacCodexClient.swift in Sources */,
 				F447B744AEB4522E555A9EA7 /* MacDashboardView.swift in Sources */,

@@ -3,6 +3,73 @@ import XCTest
 @testable import CodeAnywhereMac
 
 final class BarkContractTests: XCTestCase {
+    func testOfficialJSONPayloadIncludesNotificationFormatAndStyle() throws {
+        let notification = BarkNotification(
+            title: "Codex 已完成",
+            subtitle: "CodeAnyWhere",
+            body: "修复登录流程\n耗时 3 分钟",
+            level: .timeSensitive,
+            volume: 7,
+            sound: "minuet",
+            icon: "https://example.com/codex.png",
+            group: "Codex",
+            url: "codeanywhere://thread/thread-1",
+            id: "turn-1",
+            usesMarkdown: true
+        )
+
+        let data = try BarkPushPayload.encodedData(
+            notification: notification,
+            deviceKey: "device-key"
+        )
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(json["device_key"] as? String, "device-key")
+        XCTAssertEqual(json["title"] as? String, "Codex 已完成")
+        XCTAssertEqual(json["subtitle"] as? String, "CodeAnyWhere")
+        XCTAssertNil(json["body"])
+        XCTAssertEqual(json["markdown"] as? String, "修复登录流程\n耗时 3 分钟")
+        XCTAssertEqual(json["level"] as? String, "timeSensitive")
+        XCTAssertEqual(json["volume"] as? Int, 7)
+        XCTAssertEqual(json["sound"] as? String, "minuet")
+        XCTAssertEqual(json["icon"] as? String, "https://example.com/codex.png")
+        XCTAssertEqual(json["group"] as? String, "Codex")
+        XCTAssertEqual(json["url"] as? String, "codeanywhere://thread/thread-1")
+        XCTAssertEqual(json["id"] as? String, "turn-1")
+    }
+
+    func testNotificationStyleRendersDocumentedTemplateTokens() {
+        let style = BarkNotificationStyle(
+            titleTemplate: "{status}",
+            subtitleTemplate: "{thread}",
+            bodyTemplate: "{thread} · {time}",
+            group: "Codex Tasks",
+            level: .passive,
+            criticalVolume: 5,
+            sound: "",
+            icon: "",
+            usesMarkdown: false
+        )
+        let date = Date(timeIntervalSince1970: 1_786_000_000)
+
+        let notification = style.notification(
+            threadTitle: "设置页重构",
+            statusTitle: "Codex 已完成",
+            completedAt: date,
+            url: "codeanywhere://thread/1",
+            id: "turn-1"
+        )
+
+        XCTAssertEqual(notification.title, "Codex 已完成")
+        XCTAssertEqual(notification.subtitle, "设置页重构")
+        XCTAssertTrue(notification.body.hasPrefix("设置页重构 · "))
+        XCTAssertEqual(notification.group, "Codex Tasks")
+        XCTAssertEqual(notification.level, .passive)
+        XCTAssertNil(notification.volume)
+        XCTAssertNil(notification.sound)
+        XCTAssertNil(notification.icon)
+    }
+
     func testNotificationIdentifierFitsAPNsCollapseIDLimit() {
         let oversized = "codeanywhere-" + String(repeating: "a", count: 64)
         let normalized = BarkNotificationIdentifier.normalized(oversized)

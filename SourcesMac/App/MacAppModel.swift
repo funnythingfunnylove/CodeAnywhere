@@ -50,13 +50,39 @@ final class MacAppModel: ObservableObject {
             monitor.barkServerURL = BarkServerConfiguration.resolvedURL(from: barkServerURL)
         }
     }
+    @Published var barkStyle: BarkNotificationStyle {
+        didSet {
+            if let data = try? JSONEncoder().encode(barkStyle) {
+                defaults.set(data, forKey: Keys.barkStyle)
+            }
+            monitor.notificationStyle = barkStyle
+        }
+    }
     @Published private(set) var hasStoredDeviceKey = false
     @Published private(set) var barkStatus: BarkConfigurationStatus = .idle
 
     let server: ServerProcessController
     let monitor: CompletionMonitor
+    let codex: CodexInstallationController
 
     var versionDisplay: String { MacAppVersion.display }
+    var localServerEndpoint: String? {
+        LocalNetworkAddressResolver.preferredIPv4Address().map {
+            "ws://\($0):\(configuredPort)"
+        }
+    }
+    var canStartServer: Bool { !server.state.isRunning && !codex.updateState.isWorking }
+    var canUpdateCodex: Bool { !server.state.isRunning && !codex.updateState.isWorking }
+    var operatingSystemDisplay: String { ProcessInfo.processInfo.operatingSystemVersionString }
+    var architectureDisplay: String {
+#if arch(arm64)
+        return "Apple Silicon (arm64)"
+#elseif arch(x86_64)
+        return "Intel (x86_64)"
+#else
+        return "未知架构"
+#endif
+    }
 
     private let defaults: UserDefaults
     private let deviceKeyStore: any DeviceKeyStoring
@@ -68,6 +94,7 @@ final class MacAppModel: ObservableObject {
         defaults: UserDefaults = .standard,
         server: ServerProcessController? = nil,
         monitor: CompletionMonitor? = nil,
+        codex: CodexInstallationController? = nil,
         deviceKeyStore: any DeviceKeyStoring = KeychainDeviceKeyStore(),
         barkSender: any BarkSending = BarkClient()
     ) {
@@ -76,6 +103,7 @@ final class MacAppModel: ObservableObject {
         let resolvedMonitor = monitor ?? CompletionMonitor()
         self.server = resolvedServer
         self.monitor = resolvedMonitor
+        self.codex = codex ?? CodexInstallationController()
         self.deviceKeyStore = deviceKeyStore
         self.barkSender = barkSender
         let savedPort = defaults.integer(forKey: Keys.port)
@@ -83,10 +111,17 @@ final class MacAppModel: ObservableObject {
         startsAutomatically = defaults.object(forKey: Keys.autoStart) as? Bool ?? false
         let savedBarkServerURL = defaults.string(forKey: Keys.barkServerURL)
         barkServerURL = BarkServerConfiguration.resolvedURL(from: savedBarkServerURL)
+        if let styleData = defaults.data(forKey: Keys.barkStyle),
+           let savedStyle = try? JSONDecoder().decode(BarkNotificationStyle.self, from: styleData) {
+            barkStyle = savedStyle
+        } else {
+            barkStyle = .codexDefault
+        }
         if savedBarkServerURL != barkServerURL {
             defaults.set(barkServerURL, forKey: Keys.barkServerURL)
         }
         resolvedMonitor.barkServerURL = barkServerURL
+        resolvedMonitor.notificationStyle = barkStyle
         hasStoredDeviceKey = (try? deviceKeyStore.read())?.isEmpty == false
         resolvedServer.onExit = { [weak resolvedMonitor] _ in
             resolvedMonitor?.stop()
@@ -97,15 +132,20 @@ final class MacAppModel: ObservableObject {
         resolvedMonitor.objectWillChange
             .sink { [weak self] in self?.objectWillChange.send() }
             .store(in: &cancellables)
+        self.codex.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
     func handleInitialLaunch() {
         guard !didHandleInitialLaunch else { return }
         didHandleInitialLaunch = true
+        Task { await codex.refresh() }
         if startsAutomatically { startServer() }
     }
 
     func startServer() {
+        guard canStartServer else { return }
         do {
             try server.start(port: configuredPort)
             monitor.barkServerURL = BarkServerConfiguration.resolvedURL(from: barkServerURL)
@@ -113,6 +153,11 @@ final class MacAppModel: ObservableObject {
         } catch {
             barkStatus = .failure(ProcessLogRedactor.redact(error.localizedDescription))
         }
+    }
+
+    func updateCodex() async {
+        guard canUpdateCodex else { return }
+        await codex.updateCodex()
     }
 
     func stopServer() {
@@ -152,14 +197,15 @@ final class MacAppModel: ObservableObject {
                 throw DeviceKeyStoreError.emptyKey
             }
             let testID = "codeanywhere-test-\(UUID().uuidString.lowercased())"
+            let notification = barkStyle.notification(
+                threadTitle: "Bark 测试提醒",
+                statusTitle: "CodeAnywhere 测试",
+                completedAt: Date(),
+                url: "codeanywhere://thread/bark-test",
+                id: testID
+            )
             try await barkSender.send(
-                BarkNotification(
-                    title: "CodeAnywhere 测试",
-                    body: "Mac 伴侣已连接到 Bark Server",
-                    group: "CodeAnywhere",
-                    url: "codeanywhere://thread/bark-test",
-                    id: testID
-                ),
+                notification,
                 deviceKey: deviceKey,
                 serverURL: BarkServerConfiguration.resolvedURL(from: barkServerURL)
             )
@@ -173,5 +219,6 @@ final class MacAppModel: ObservableObject {
         static let port = "mac.server.port"
         static let autoStart = "mac.server.autoStart"
         static let barkServerURL = "mac.bark.serverURL"
+        static let barkStyle = "mac.bark.notificationStyle"
     }
 }

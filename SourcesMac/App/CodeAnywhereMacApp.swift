@@ -32,7 +32,8 @@ struct CodeAnywhereMacApp: App {
                     model.handleInitialLaunch()
                 }
         }
-        .defaultSize(width: 780, height: 760)
+        .defaultSize(width: 1_080, height: 760)
+        .windowToolbarStyle(.unified(showsTitle: true))
 
         MenuBarExtra("CodeAnywhere Mac", systemImage: "terminal.fill") {
             MacMenuBarView(model: model)

@@ -19,6 +19,9 @@ must not depend on background execution for completion delivery.
   interpolation is allowed.
 - The server listens on `ws://0.0.0.0:<configured-port>` using capability-token
   authentication compatible with the existing iOS client.
+- The UI presents a preferred active, non-loopback IPv4 address as
+  `ws://<lan-ip>:<configured-port>` for iPhone entry; it does not present the
+  `0.0.0.0` bind address as a client endpoint.
 - The capability-token file is created with mode `0600` outside the repository
   and deleted after the owned process exits.
 - The Mac app stores the exact `Process` instance and PID it created. Stop and
@@ -26,6 +29,11 @@ must not depend on background execution for completion delivery.
   process-name matching or terminate an externally started Codex server.
 - Process exit, launch errors, and recent redacted output are visible in the Mac
   UI. No credential or notification device key may be logged.
+- The Codex dashboard reports the resolved CLI path and version. An explicit
+  update action executes that exact binary with the `update` argument directly,
+  without shell interpolation, and refreshes the version after success. The UI
+  requires the owned app-server to be stopped before updating, and prevents the
+  server from starting while an update or version check is in progress.
 
 ## Completion monitoring contract
 
@@ -54,7 +62,13 @@ must not depend on background execution for completion delivery.
   `bark-notify-device-key` and never written to UserDefaults, source, logs, or a
   URL.
 - Requests use JSON `POST /push` with `device_key` in the body.
-- Payload fields are `title`, `body`, `group`, `url`, and a stable `id`.
+- Payload fields always include `title`, `group`, `level`, `url`, and a stable
+  `id`; plain notifications use `body`, while Markdown notifications use
+  `markdown` and omit `body`. Optional official Bark fields are `subtitle`,
+  `volume`, `sound`, and `icon`.
+- Notification format templates may substitute `{thread}`, `{status}`, and
+  `{time}`. Format, group, interruption level, sound, icon, and Markdown choices
+  are persisted in UserDefaults; the device key remains Keychain-only.
 - Delivery is recorded only after HTTP success and Bark business `code: 200`.
   Server acceptance is not reported as proof that iOS displayed the message.
 - A failed delivery retries at most five times with bounded backoff. Further
@@ -75,6 +89,9 @@ must not depend on background execution for completion delivery.
   monitor status, main-window reopening, start/stop, and explicit quit.
 - Explicit Quit remains the only UI action that shuts down the monitor and the
   app-server process owned by this app.
+- The main window uses four stable sidebar destinations: Codex, Notify, Logs,
+  and Settings. Closing or switching destinations does not alter server or
+  monitoring state.
 
 ## Deep-link contract
 
