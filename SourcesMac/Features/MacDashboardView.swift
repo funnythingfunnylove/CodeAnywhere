@@ -213,7 +213,7 @@ private struct NotifyDashboardPage: View {
                     TextField("副标题模板", text: $model.barkStyle.subtitleTemplate)
                     TextField("正文模板", text: $model.barkStyle.bodyTemplate, axis: .vertical)
                         .lineLimit(2...5)
-                    Text("可用变量：{thread} 对话标题、{status} 完成状态、{time} 完成时间")
+                    Text("可用变量：{thread} 对话标题、{status} 终态、{time} 完成时间、{detail} 错误详情")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Toggle("正文使用 Bark Markdown", isOn: $model.barkStyle.usesMarkdown)
@@ -326,7 +326,7 @@ private struct NotifyDashboardPage: View {
                     ContentUnavailableView(
                         "暂无提醒记录",
                         systemImage: "bell.slash",
-                        description: Text("Codex Turn 完成并被 Bark Server 接受后会显示在这里。")
+                        description: Text("Codex Turn 完成、失败或中断并被 Bark Server 接受后会显示在这里。")
                     )
                     .frame(minHeight: 110)
                 } else {
@@ -485,7 +485,7 @@ private struct BarkNotificationPreview: View {
         style.notification(
             threadTitle: "重新设计 Mac 端界面",
             statusTitle: "Codex 已完成",
-            completedAt: Date(),
+            terminalAt: Date(),
             url: "codeanywhere://thread/preview",
             id: "preview"
         )

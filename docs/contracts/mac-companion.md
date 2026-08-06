@@ -40,15 +40,18 @@ must not depend on background execution for completion delivery.
 - The Mac app establishes its own authenticated app-server client after launch.
 - A received `turn/completed` server notification is parsed from
   `params.threadId` and `params.turn.id/status`, then enters the same persisted,
-  deduplicated Bark delivery path immediately.
+  deduplicated Bark delivery path immediately for completed, failed, or
+  interrupted turns.
 - Polling remains the fallback for turns whose server notification is not
   broadcast to this WebSocket session: `thread/list` finds changed threads and
   `thread/read(includeTurns: true)` reads the authoritative latest Turn.
-- A completion candidate must have a latest Turn whose status is exactly
-  `completed`. Failed, interrupted, idle, and unrelated thread timestamp
-  updates never create a Bark delivery.
-- Delivery identity is derived from the Codex Turn ID, so one completed Turn is
-  sent at most once while a later completed Turn in the same thread remains a
+- A terminal candidate must have a latest Turn whose status is `completed`,
+  `failed`, or `interrupted`. Idle and unrelated thread timestamp updates never
+  create a Bark delivery. When a failed Turn provides `error.message` or
+  `error.additionalDetails`, the redacted detail is retained with the pending
+  delivery and included in the Bark body.
+- Delivery identity is derived from the Codex Turn ID, so one terminal Turn is
+  sent at most once while a later terminal Turn in the same thread remains a
   distinct event.
 - Active observations and delivered event identifiers are persisted locally so
   an app restart does not lose an in-flight completion or duplicate a delivery.
@@ -66,9 +69,9 @@ must not depend on background execution for completion delivery.
   `id`; plain notifications use `body`, while Markdown notifications use
   `markdown` and omit `body`. Optional official Bark fields are `subtitle`,
   `volume`, `sound`, and `icon`.
-- Notification format templates may substitute `{thread}`, `{status}`, and
-  `{time}`. Format, group, interruption level, sound, icon, and Markdown choices
-  are persisted in UserDefaults; the device key remains Keychain-only.
+- Notification format templates may substitute `{thread}`, `{status}`, `{time}`,
+  and `{detail}`. Format, group, interruption level, sound, icon, and Markdown
+  choices are persisted in UserDefaults; the device key remains Keychain-only.
 - Delivery is recorded only after HTTP success and Bark business `code: 200`.
   Server acceptance is not reported as proof that iOS displayed the message.
 - A failed delivery retries at most five times with bounded backoff. Further

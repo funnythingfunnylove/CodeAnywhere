@@ -113,7 +113,11 @@ final class MacAppModel: ObservableObject {
         barkServerURL = BarkServerConfiguration.resolvedURL(from: savedBarkServerURL)
         if let styleData = defaults.data(forKey: Keys.barkStyle),
            let savedStyle = try? JSONDecoder().decode(BarkNotificationStyle.self, from: styleData) {
-            barkStyle = savedStyle
+            let migratedStyle = savedStyle == .legacyCodexDefault ? BarkNotificationStyle.codexDefault : savedStyle
+            barkStyle = migratedStyle
+            if migratedStyle != savedStyle, let data = try? JSONEncoder().encode(migratedStyle) {
+                defaults.set(data, forKey: Keys.barkStyle)
+            }
         } else {
             barkStyle = .codexDefault
         }
@@ -200,7 +204,7 @@ final class MacAppModel: ObservableObject {
             let notification = barkStyle.notification(
                 threadTitle: "Bark 测试提醒",
                 statusTitle: "CodeAnywhere 测试",
-                completedAt: Date(),
+                terminalAt: Date(),
                 url: "codeanywhere://thread/bark-test",
                 id: testID
             )

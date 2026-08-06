@@ -18,13 +18,27 @@ enum MacCodexClientError: LocalizedError, Sendable {
     }
 }
 
-struct MacCodexTurnCompletedEvent: Equatable, Sendable {
+struct MacCodexTurnTerminatedEvent: Equatable, Sendable {
     let threadID: String
     let turnID: String
+    let status: MonitoredThreadState
+    let detail: String?
+
+    init(
+        threadID: String,
+        turnID: String,
+        status: MonitoredThreadState = .completed,
+        detail: String? = nil
+    ) {
+        self.threadID = threadID
+        self.turnID = turnID
+        self.status = status
+        self.detail = detail
+    }
 }
 
 enum MacCodexServerEvent: Equatable, Sendable {
-    case turnCompleted(MacCodexTurnCompletedEvent)
+    case turnTerminated(MacCodexTurnTerminatedEvent)
 }
 
 enum MacCodexServerEventParser {
@@ -35,13 +49,20 @@ enum MacCodexServerEventParser {
               let threadID = params["threadId"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
               !threadID.isEmpty,
               let turn = params["turn"],
-              turn["status"]?.stringValue == "completed",
+              let rawStatus = turn["status"]?.stringValue,
               let turnID = turn["id"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
               !turnID.isEmpty else {
             return nil
         }
-        return .turnCompleted(
-            MacCodexTurnCompletedEvent(threadID: threadID, turnID: turnID)
+        let status = MonitoredThreadState(codexStatus: rawStatus)
+        guard status.isTerminal else { return nil }
+        return .turnTerminated(
+            MacCodexTurnTerminatedEvent(
+                threadID: threadID,
+                turnID: turnID,
+                status: status,
+                detail: CompletionTerminalDetail.redacted(from: turn["error"])
+            )
         )
     }
 }

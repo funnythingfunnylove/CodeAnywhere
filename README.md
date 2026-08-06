@@ -84,7 +84,7 @@ codeanywhere://thread/<thread-id>
 
 - 启动和停止由 Mac App 管理的 Codex `app-server`。
 - 展示服务器状态、网络地址和连接信息。
-- 监听 `turn/completed`，并以轮询作为可靠性回退。
+- 监听 `turn/completed` 中的完成、失败和中断终态，并以轮询作为可靠性回退；失败详情会先脱敏再写入提醒正文。
 - 持久化通知历史，按 Turn ID 去重，并限制 Bark 重试次数。
 - 通过菜单栏快速打开主界面、启动/停止服务器和退出应用。
 

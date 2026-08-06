@@ -55,7 +55,7 @@ final class BarkContractTests: XCTestCase {
         let notification = style.notification(
             threadTitle: "设置页重构",
             statusTitle: "Codex 已完成",
-            completedAt: date,
+            terminalAt: date,
             url: "codeanywhere://thread/1",
             id: "turn-1"
         )
@@ -68,6 +68,32 @@ final class BarkContractTests: XCTestCase {
         XCTAssertNil(notification.volume)
         XCTAssertNil(notification.sound)
         XCTAssertNil(notification.icon)
+    }
+
+    func testNotificationStyleAppendsTerminalDetailWhenTemplateOmitsIt() {
+        let style = BarkNotificationStyle(
+            titleTemplate: "{status}",
+            subtitleTemplate: "{thread}",
+            bodyTemplate: "{status} · {time}",
+            group: "Codex Tasks",
+            level: .active,
+            criticalVolume: 5,
+            sound: "",
+            icon: "",
+            usesMarkdown: false
+        )
+
+        let notification = style.notification(
+            threadTitle: "代理认证",
+            statusTitle: "Codex 执行失败",
+            detail: "503 auth_unavailable",
+            terminalAt: Date(timeIntervalSince1970: 1_786_000_000),
+            url: "codeanywhere://thread/1",
+            id: "turn-1"
+        )
+
+        XCTAssertEqual(notification.title, "Codex 执行失败")
+        XCTAssertTrue(notification.body.contains("503 auth_unavailable"))
     }
 
     func testNotificationIdentifierFitsAPNsCollapseIDLimit() {

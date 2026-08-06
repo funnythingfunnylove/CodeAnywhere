@@ -10,9 +10,9 @@ enum MonitoredThreadState: String, Codable, Sendable {
 
     init(codexStatus: String) {
         switch codexStatus.lowercased() {
-        case "active", "inprogress": self = .active
-        case "idle", "completed": self = .completed
-        case "systemerror", "failed", "error": self = .failed
+        case "active", "inprogress", "running": self = .active
+        case "completed": self = .completed
+        case "systemerror", "failed", "error", "errored": self = .failed
         case "interrupted", "cancelled", "canceled": self = .interrupted
         default: self = .unknown
         }
@@ -26,12 +26,44 @@ enum MonitoredThreadState: String, Codable, Sendable {
     }
 }
 
+enum CompletionTerminalDetail {
+    private static let sensitivePatterns = [
+        #"(?i)((?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|secret)\s*[:=]\s*[\"']?)[^\s\"',};&]+"#,
+        #"(?i)([?&](?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|key)=)[^&#;\s]+"#,
+        #"(?i)(cookie\s*:\s*)[^\r\n]+"#,
+        #"(\b)sk-[A-Za-z0-9_-]{8,}\b"#
+    ]
+
+    static func redacted(from error: MacJSONValue?) -> String? {
+        guard let error else { return nil }
+        let message = error["message"]?.stringValue
+        let additionalDetails = error["additionalDetails"]?.stringValue
+        let value = [message, additionalDetails]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        guard !value.isEmpty else { return nil }
+        var redacted = ProcessLogRedactor.redact(String(value.prefix(2_000)))
+        for pattern in sensitivePatterns {
+            guard let expression = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(redacted.startIndex..<redacted.endIndex, in: redacted)
+            redacted = expression.stringByReplacingMatches(
+                in: redacted,
+                range: range,
+                withTemplate: "$1<redacted>"
+            )
+        }
+        return redacted
+    }
+}
+
 struct MonitoredThreadSnapshot: Codable, Equatable, Sendable {
     let id: String
     let title: String
     let updatedAt: Date
     let state: MonitoredThreadState
     let turnID: String?
+    let terminalDetail: String?
 
     init?(json: MacJSONValue) {
         guard let id = json["id"]?.stringValue, !id.isEmpty else { return nil }
@@ -53,11 +85,17 @@ struct MonitoredThreadSnapshot: Codable, Equatable, Sendable {
         updatedAt = Date(timeIntervalSince1970: seconds)
         let latestTurn = json["turns"]?.arrayValue?.last
         turnID = latestTurn?["id"]?.stringValue
-        let status = latestTurn?["status"]?.stringValue
-            ?? json["status"]?["type"]?.stringValue
-            ?? json["status"]?.stringValue
-            ?? "unknown"
-        state = MonitoredThreadState(codexStatus: status)
+        if let rawTurnStatus = latestTurn?["status"]?.stringValue {
+            state = MonitoredThreadState(codexStatus: rawTurnStatus)
+        } else {
+            let rawThreadStatus = json["status"]?["type"]?.stringValue
+                ?? json["status"]?.stringValue
+                ?? "unknown"
+            state = rawThreadStatus.lowercased() == "active" ? .active : .unknown
+        }
+        terminalDetail = CompletionTerminalDetail.redacted(
+            from: latestTurn?["error"] ?? json["status"]
+        )
     }
 
     init(
@@ -65,13 +103,15 @@ struct MonitoredThreadSnapshot: Codable, Equatable, Sendable {
         title: String,
         updatedAt: Date,
         state: MonitoredThreadState,
-        turnID: String? = nil
+        turnID: String? = nil,
+        terminalDetail: String? = nil
     ) {
         self.id = id
         self.title = title
         self.updatedAt = updatedAt
         self.state = state
         self.turnID = turnID
+        self.terminalDetail = terminalDetail
     }
 }
 
@@ -85,12 +125,39 @@ struct PendingCompletionDelivery: Codable, Equatable, Identifiable, Sendable {
     let threadID: String
     let title: String
     let body: String
+    let detail: String?
     let group: String
     let deepLink: String
     let terminalState: MonitoredThreadState
     let threadUpdatedAt: Date
     var attempts: Int
     var nextAttemptAt: Date
+
+    init(
+        id: String,
+        threadID: String,
+        title: String,
+        body: String,
+        detail: String? = nil,
+        group: String,
+        deepLink: String,
+        terminalState: MonitoredThreadState,
+        threadUpdatedAt: Date,
+        attempts: Int,
+        nextAttemptAt: Date
+    ) {
+        self.id = id
+        self.threadID = threadID
+        self.title = title
+        self.body = body
+        self.detail = detail
+        self.group = group
+        self.deepLink = deepLink
+        self.terminalState = terminalState
+        self.threadUpdatedAt = threadUpdatedAt
+        self.attempts = attempts
+        self.nextAttemptAt = nextAttemptAt
+    }
 }
 
 struct CompletionNotificationRecord: Codable, Equatable, Identifiable, Sendable {
@@ -98,9 +165,30 @@ struct CompletionNotificationRecord: Codable, Equatable, Identifiable, Sendable 
     let threadID: String
     let title: String
     let body: String
+    let detail: String?
     let terminalState: MonitoredThreadState
     let threadUpdatedAt: Date
     let deliveredAt: Date
+
+    init(
+        id: String,
+        threadID: String,
+        title: String,
+        body: String,
+        detail: String? = nil,
+        terminalState: MonitoredThreadState,
+        threadUpdatedAt: Date,
+        deliveredAt: Date
+    ) {
+        self.id = id
+        self.threadID = threadID
+        self.title = title
+        self.body = body
+        self.detail = detail
+        self.terminalState = terminalState
+        self.threadUpdatedAt = threadUpdatedAt
+        self.deliveredAt = deliveredAt
+    }
 }
 
 struct CompletionMonitorState: Codable, Equatable, Sendable {
@@ -147,22 +235,11 @@ enum CompletionDetector {
         now: Date,
         maximumAttempts: Int
     ) {
-        var latestByThread: [String: PendingCompletionDelivery] = [:]
-        for delivery in state.pending.values where delivery.terminalState == .completed {
-            guard let existing = latestByThread[delivery.threadID] else {
-                latestByThread[delivery.threadID] = delivery
-                continue
-            }
-            if delivery.threadUpdatedAt > existing.threadUpdatedAt {
-                latestByThread[delivery.threadID] = delivery
-            }
+        for id in state.pending.keys {
+            guard var delivery = state.pending[id], delivery.terminalState.isTerminal else { continue }
+            delivery.nextAttemptAt = delivery.attempts < maximumAttempts ? now : .distantFuture
+            state.pending[id] = delivery
         }
-
-        state.pending = Dictionary(uniqueKeysWithValues: latestByThread.values.map { delivery in
-            var recovered = delivery
-            recovered.nextAttemptAt = recovered.attempts < maximumAttempts ? now : .distantFuture
-            return (recovered.id, recovered)
-        })
     }
 
     static func observe(
@@ -186,7 +263,7 @@ enum CompletionDetector {
             }
 
             let wasActive = state.active.removeValue(forKey: snapshot.id) != nil
-            guard snapshot.state == .completed,
+            guard snapshot.state.isTerminal,
                   let turnID = snapshot.turnID?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !turnID.isEmpty else { continue }
             let firstAppearedAfterBaseline = snapshot.updatedAt > previousBaseline
@@ -199,6 +276,7 @@ enum CompletionDetector {
                 threadID: snapshot.id,
                 title: notificationTitle(for: snapshot.state),
                 body: snapshot.title,
+                detail: snapshot.terminalDetail,
                 group: "CodeAnywhere",
                 deepLink: deepLink(for: snapshot.id),
                 terminalState: snapshot.state,
@@ -212,8 +290,8 @@ enum CompletionDetector {
         }
     }
 
-    static func observeTurnCompleted(
-        _ event: MacCodexTurnCompletedEvent,
+    static func observeTurnTerminated(
+        _ event: MacCodexTurnTerminatedEvent,
         title: String,
         state: inout CompletionMonitorState,
         now: Date
@@ -221,14 +299,16 @@ enum CompletionDetector {
         state.active.removeValue(forKey: event.threadID)
         let eventID = stableEventID(threadID: event.threadID, turnID: event.turnID)
         guard state.delivered[eventID] == nil, state.pending[eventID] == nil else { return }
+        guard event.status.isTerminal else { return }
         state.pending[eventID] = PendingCompletionDelivery(
             id: eventID,
             threadID: event.threadID,
-            title: notificationTitle(for: .completed),
+            title: notificationTitle(for: event.status),
             body: title,
+            detail: event.detail,
             group: "CodeAnywhere",
             deepLink: deepLink(for: event.threadID),
-            terminalState: .completed,
+            terminalState: event.status,
             threadUpdatedAt: now,
             attempts: 0,
             nextAttemptAt: now
@@ -251,6 +331,7 @@ enum CompletionDetector {
                     threadID: delivery.threadID,
                     title: delivery.title,
                     body: delivery.body,
+                    detail: delivery.detail,
                     terminalState: delivery.terminalState,
                     threadUpdatedAt: delivery.threadUpdatedAt,
                     deliveredAt: date
@@ -291,7 +372,9 @@ enum CompletionDetector {
     private static func notificationTitle(for state: MonitoredThreadState) -> String {
         switch state {
         case .completed: return "Codex 已完成"
-        case .failed, .interrupted, .active, .unknown: return "Codex 状态已更新"
+        case .failed: return "Codex 执行失败"
+        case .interrupted: return "Codex 已中断"
+        case .active, .unknown: return "Codex 状态已更新"
         }
     }
 }

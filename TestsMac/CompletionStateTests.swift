@@ -64,8 +64,8 @@ final class CompletionStateTests: XCTestCase {
         XCTAssertEqual(state.notificationHistory.first?.deliveredAt, baseline)
     }
 
-    func testOnlyCompletedStateCreatesPendingDelivery() {
-        for terminalState in [MonitoredThreadState.failed, .interrupted] {
+    func testAllTerminalStatesCreatePendingDeliveries() throws {
+        for terminalState in [MonitoredThreadState.completed, .failed, .interrupted] {
             var state = CompletionMonitorState(baseline: baseline)
             CompletionDetector.observe(
                 snapshots: [snapshot(id: "thread-terminal", updatedAt: 1_010, state: .active)],
@@ -78,7 +78,8 @@ final class CompletionStateTests: XCTestCase {
                 now: Date(timeIntervalSince1970: 1_021)
             )
 
-            XCTAssertTrue(state.pending.isEmpty, "\(terminalState) must not trigger Bark delivery")
+            let delivery = try XCTUnwrap(state.pending.values.first)
+            XCTAssertEqual(delivery.terminalState, terminalState)
         }
     }
 
@@ -188,6 +189,47 @@ final class CompletionStateTests: XCTestCase {
         XCTAssertEqual(snapshot.state, .active)
     }
 
+    func testIdleThreadStatusWithoutTurnStatusIsNotCompletion() throws {
+        let snapshot = try XCTUnwrap(MonitoredThreadSnapshot(json: .object([
+            "id": .string("thread-idle"),
+            "updatedAt": .number(1_100_000),
+            "status": .object(["type": .string("idle")]),
+            "turns": .array([
+                .object(["id": .string("turn-without-status")])
+            ])
+        ])))
+
+        XCTAssertEqual(snapshot.state, .unknown)
+    }
+
+    func testThreadTerminalStatusWithoutTurnStatusIsNotAuthoritative() throws {
+        let snapshot = try XCTUnwrap(MonitoredThreadSnapshot(json: .object([
+            "id": .string("thread-error"),
+            "updatedAt": .number(1_100_000),
+            "status": .object(["type": .string("systemError")]),
+            "turns": .array([
+                .object(["id": .string("turn-without-status")])
+            ])
+        ])))
+
+        XCTAssertEqual(snapshot.state, .unknown)
+    }
+
+    func testIdleTurnStatusIsNotTerminal() throws {
+        let snapshot = try XCTUnwrap(MonitoredThreadSnapshot(json: .object([
+            "id": .string("turn-idle"),
+            "updatedAt": .number(1_100_000),
+            "turns": .array([
+                .object([
+                    "id": .string("turn-idle"),
+                    "status": .string("idle")
+                ])
+            ])
+        ])))
+
+        XCTAssertEqual(snapshot.state, .unknown)
+    }
+
     func testTurnCompletedNotificationParsesServerEvent() throws {
         let data = Data(#"""
         {
@@ -201,8 +243,8 @@ final class CompletionStateTests: XCTestCase {
 
         XCTAssertEqual(
             MacCodexServerEventParser.parse(data: data),
-            .turnCompleted(
-                MacCodexTurnCompletedEvent(threadID: "thread-event", turnID: "turn-event")
+            .turnTerminated(
+                MacCodexTurnTerminatedEvent(threadID: "thread-event", turnID: "turn-event")
             )
         )
     }
@@ -216,8 +258,44 @@ final class CompletionStateTests: XCTestCase {
         XCTAssertGreaterThan(task.maximumMessageSize, 2 * 1_024 * 1_024)
     }
 
-    func testNonCompletedServerNotificationIsIgnored() {
-        let data = Data(#"{"method":"turn/completed","params":{"threadId":"thread-event","turn":{"id":"turn-event","status":"failed","items":[]}}}"#.utf8)
+    func testFailedServerNotificationIncludesRedactedErrorDetail() {
+        let data = Data(#"{"method":"turn/completed","params":{"threadId":"thread-event","turn":{"id":"turn-event","status":"failed","error":{"message":"unexpected status 503: auth_unavailable; Authorization: Bearer secret-token; api_key=api-secret; url=https://example.test/?access_token=query-secret; Cookie: session=private"},"items":[]}}}"#.utf8)
+
+        XCTAssertEqual(
+            MacCodexServerEventParser.parse(data: data),
+            .turnTerminated(
+                MacCodexTurnTerminatedEvent(
+                    threadID: "thread-event",
+                    turnID: "turn-event",
+                    status: .failed,
+                    detail: "unexpected status 503: auth_unavailable; Authorization: Bearer <redacted> api_key=<redacted>; url=https://example.test/?access_token=<redacted>; Cookie: <redacted>"
+                )
+            )
+        )
+    }
+
+    func testInterruptedServerNotificationIsTerminal() {
+        let data = Data(#"{"method":"turn/completed","params":{"threadId":"thread-event","turn":{"id":"turn-event","status":"interrupted","items":[]}}}"#.utf8)
+
+        XCTAssertEqual(
+            MacCodexServerEventParser.parse(data: data),
+            .turnTerminated(
+                MacCodexTurnTerminatedEvent(
+                    threadID: "thread-event",
+                    turnID: "turn-event",
+                    status: .interrupted
+                )
+            )
+        )
+    }
+
+    func testInProgressServerNotificationIsIgnored() {
+        let data = Data(#"{"method":"turn/completed","params":{"threadId":"thread-event","turn":{"id":"turn-event","status":"inProgress","items":[]}}}"#.utf8)
+        XCTAssertNil(MacCodexServerEventParser.parse(data: data))
+    }
+
+    func testIdleServerNotificationIsIgnored() {
+        let data = Data(#"{"method":"turn/completed","params":{"threadId":"thread-event","turn":{"id":"turn-event","status":"idle","items":[]}}}"#.utf8)
         XCTAssertNil(MacCodexServerEventParser.parse(data: data))
     }
 
@@ -243,7 +321,7 @@ final class CompletionStateTests: XCTestCase {
         XCTAssertNil(policy.nextAttemptDate(afterAttempt: 100, now: now))
     }
 
-    func testPrepareForMonitoringCoalescesWithoutReactivatingExhaustedDeliveries() throws {
+    func testPrepareForMonitoringPreservesEveryTurnWithoutReactivatingExhaustedDeliveries() throws {
         let first = snapshot(id: "thread-1", updatedAt: 1_010, state: .completed, turnID: "turn-1")
         let latest = snapshot(id: "thread-1", updatedAt: 1_020, state: .completed, turnID: "turn-2")
         let other = snapshot(id: "thread-2", updatedAt: 1_015, state: .completed)
@@ -263,11 +341,11 @@ final class CompletionStateTests: XCTestCase {
             maximumAttempts: 5
         )
 
-        XCTAssertEqual(state.pending.count, 2)
-        let threadOne = try XCTUnwrap(state.pending.values.first { $0.threadID == "thread-1" })
-        XCTAssertEqual(threadOne.threadUpdatedAt, latest.updatedAt)
-        XCTAssertEqual(threadOne.attempts, 5)
-        XCTAssertEqual(threadOne.nextAttemptAt, .distantFuture)
+        XCTAssertEqual(state.pending.count, 3)
+        let threadOneDeliveries = state.pending.values.filter { $0.threadID == "thread-1" }
+        XCTAssertEqual(Set(threadOneDeliveries.map(\.threadUpdatedAt)), Set([first.updatedAt, latest.updatedAt]))
+        XCTAssertTrue(threadOneDeliveries.allSatisfy { $0.attempts == 5 })
+        XCTAssertTrue(threadOneDeliveries.allSatisfy { $0.nextAttemptAt == .distantFuture })
     }
 
     func testFilePersistenceRoundTrip() throws {
@@ -333,15 +411,15 @@ final class CompletionStateTests: XCTestCase {
         monitor.start(port: 4_500)
         try await waitUntil(timeout: 2) { await client.hasEventHandler }
         await client.emit(
-            .turnCompleted(
-                MacCodexTurnCompletedEvent(threadID: "thread-event", turnID: "turn-event")
+            .turnTerminated(
+                MacCodexTurnTerminatedEvent(threadID: "thread-event", turnID: "turn-event")
             )
         )
 
         try await waitUntil(timeout: 2) { await sender.count == 1 }
         await client.emit(
-            .turnCompleted(
-                MacCodexTurnCompletedEvent(threadID: "thread-event", turnID: "turn-event")
+            .turnTerminated(
+                MacCodexTurnTerminatedEvent(threadID: "thread-event", turnID: "turn-event")
             )
         )
         try await Task.sleep(for: .milliseconds(50))
@@ -353,18 +431,59 @@ final class CompletionStateTests: XCTestCase {
         XCTAssertEqual(monitor.notificationHistory.first?.threadID, "thread-event")
     }
 
+    @MainActor
+    func testMonitorDeliversFailedEventWithRedactedErrorDetail() async throws {
+        let persistence = InMemoryCompletionStateStore(
+            state: CompletionMonitorState(baseline: baseline)
+        )
+        let sender = RecordingBarkSender()
+        let client = EventingCompletionClient()
+        let monitor = CompletionMonitor(
+            persistence: persistence,
+            deviceKeyStore: FixedDeviceKeyStore(),
+            barkSender: sender,
+            now: baseline,
+            clientFactory: { _ in client }
+        )
+        defer { monitor.stop() }
+
+        monitor.start(port: 4_500)
+        try await waitUntil(timeout: 2) { await client.hasEventHandler }
+        await client.emit(
+            .turnTerminated(
+                MacCodexTurnTerminatedEvent(
+                    threadID: "thread-event",
+                    turnID: "turn-failed",
+                    status: .failed,
+                    detail: "unexpected status 503: auth_unavailable; Authorization: Bearer <redacted>"
+                )
+            )
+        )
+
+        try await waitUntil(timeout: 2) { await sender.count == 1 }
+        let recordedNotification = await sender.notifications.first
+        let notification = try XCTUnwrap(recordedNotification)
+        XCTAssertEqual(notification.title, "Codex 执行失败")
+        XCTAssertTrue(notification.body.contains("auth_unavailable"))
+        XCTAssertTrue(notification.body.contains("<redacted>"))
+        XCTAssertEqual(monitor.notificationHistory.first?.terminalState, .failed)
+        XCTAssertTrue(monitor.notificationHistory.first?.detail?.contains("auth_unavailable") == true)
+    }
+
     private func snapshot(
         id: String,
         updatedAt: TimeInterval,
         state: MonitoredThreadState,
-        turnID: String? = nil
+        turnID: String? = nil,
+        terminalDetail: String? = nil
     ) -> MonitoredThreadSnapshot {
         MonitoredThreadSnapshot(
             id: id,
             title: "测试对话",
             updatedAt: Date(timeIntervalSince1970: updatedAt),
             state: state,
-            turnID: turnID ?? "\(id)-turn"
+            turnID: turnID ?? "\(id)-turn",
+            terminalDetail: terminalDetail
         )
     }
 
@@ -410,6 +529,7 @@ private struct FixedDeviceKeyStore: DeviceKeyStoring, Sendable {
 
 private actor RecordingBarkSender: BarkSending {
     private(set) var count = 0
+    private(set) var notifications: [BarkNotification] = []
 
     func send(
         _ notification: BarkNotification,
@@ -417,6 +537,7 @@ private actor RecordingBarkSender: BarkSending {
         serverURL: String
     ) async throws {
         count += 1
+        notifications.append(notification)
     }
 }
 

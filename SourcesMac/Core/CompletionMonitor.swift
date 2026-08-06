@@ -158,9 +158,9 @@ final class CompletionMonitor: ObservableObject {
     private func handleServerEvent(_ event: MacCodexServerEvent) async {
         guard currentPort != nil else { return }
         switch event {
-        case .turnCompleted(let completion):
+        case .turnTerminated(let completion):
             let now = Date()
-            CompletionDetector.observeTurnCompleted(
+            CompletionDetector.observeTurnTerminated(
                 completion,
                 title: threadTitles[completion.threadID] ?? "Codex 对话",
                 state: &monitorState,
@@ -240,7 +240,8 @@ final class CompletionMonitor: ObservableObject {
             let notification = notificationStyle.notification(
                 threadTitle: delivery.body,
                 statusTitle: delivery.title,
-                completedAt: delivery.threadUpdatedAt,
+                detail: delivery.detail,
+                terminalAt: delivery.threadUpdatedAt,
                 url: delivery.deepLink,
                 id: delivery.id
             )

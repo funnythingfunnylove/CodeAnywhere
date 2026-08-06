@@ -72,7 +72,7 @@ struct BarkNotificationStyle: Codable, Equatable, Sendable {
     var icon: String
     var usesMarkdown: Bool
 
-    static let codexDefault = BarkNotificationStyle(
+    static let legacyCodexDefault = BarkNotificationStyle(
         titleTemplate: "Codex 已完成",
         subtitleTemplate: "{thread}",
         bodyTemplate: "任务已完成 · {time}",
@@ -84,21 +84,38 @@ struct BarkNotificationStyle: Codable, Equatable, Sendable {
         usesMarkdown: false
     )
 
+    static let codexDefault = BarkNotificationStyle(
+        titleTemplate: "{status}",
+        subtitleTemplate: "{thread}",
+        bodyTemplate: "{status} · {time}",
+        group: "CodeAnywhere",
+        level: .active,
+        criticalVolume: 5,
+        sound: "",
+        icon: "",
+        usesMarkdown: false
+    )
+
     func notification(
         threadTitle: String,
         statusTitle: String,
-        completedAt: Date,
+        detail: String? = nil,
+        terminalAt: Date,
         url: String,
         id: String
     ) -> BarkNotification {
         let replacements = [
             "{thread}": threadTitle,
             "{status}": statusTitle,
-            "{time}": completedAt.formatted(date: .abbreviated, time: .shortened)
+            "{time}": terminalAt.formatted(date: .abbreviated, time: .shortened),
+            "{detail}": detail ?? ""
         ]
         let renderedTitle = render(titleTemplate, replacements: replacements, fallback: statusTitle)
         let renderedSubtitle = render(subtitleTemplate, replacements: replacements, fallback: "")
-        let renderedBody = render(bodyTemplate, replacements: replacements, fallback: threadTitle)
+        var renderedBody = render(bodyTemplate, replacements: replacements, fallback: threadTitle)
+        if let detail, !detail.isEmpty, !bodyTemplate.contains("{detail}") {
+            renderedBody += "\n错误：\(detail)"
+        }
         let renderedGroup = group.trimmingCharacters(in: .whitespacesAndNewlines)
         let renderedSound = sound.trimmingCharacters(in: .whitespacesAndNewlines)
         let renderedIcon = icon.trimmingCharacters(in: .whitespacesAndNewlines)
