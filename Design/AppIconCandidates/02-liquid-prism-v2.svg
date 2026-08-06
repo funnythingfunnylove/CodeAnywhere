@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="72" y1="46" x2="958" y2="980" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3515D4"/>
+      <stop offset="0.48" stop-color="#6939F0"/>
+      <stop offset="1" stop-color="#0FBAD6"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0" cy="0" r="1" gradientTransform="translate(728 238) rotate(126) scale(690)">
+      <stop stop-color="#A8FBFF" stop-opacity="0.70"/>
+      <stop offset="0.38" stop-color="#70E8FF" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#70E8FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glassA" x1="176" y1="176" x2="720" y2="696" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.38"/>
+      <stop offset="0.46" stop-color="#E6DCFF" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#D15CFF" stop-opacity="0.17"/>
+    </linearGradient>
+    <linearGradient id="glassB" x1="408" y1="170" x2="890" y2="790" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.34"/>
+      <stop offset="0.52" stop-color="#C8F8FF" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#5CEFFF" stop-opacity="0.22"/>
+    </linearGradient>
+    <linearGradient id="glassC" x1="190" y1="470" x2="784" y2="892" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFC7FA" stop-opacity="0.24"/>
+      <stop offset="0.50" stop-color="#E6E1FF" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#A5FAFF" stop-opacity="0.25"/>
+    </linearGradient>
+    <linearGradient id="rimA" x1="170" y1="176" x2="716" y2="704" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.92"/>
+      <stop offset="0.48" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#F3A5FF" stop-opacity="0.58"/>
+    </linearGradient>
+    <linearGradient id="rimB" x1="406" y1="168" x2="892" y2="792" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.82"/>
+      <stop offset="0.44" stop-color="#DFFFFF" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#8AFFFF" stop-opacity="0.70"/>
+    </linearGradient>
+    <linearGradient id="rimC" x1="188" y1="468" x2="788" y2="894" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE9FF" stop-opacity="0.68"/>
+      <stop offset="0.48" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#BCFFFF" stop-opacity="0.78"/>
+    </linearGradient>
+    <linearGradient id="glyph" x1="328" y1="380" x2="704" y2="650" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E7FDFF"/>
+    </linearGradient>
+    <filter id="clusterShadow" x="70" y="90" width="890" height="870" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="34" stdDeviation="34" flood-color="#170056" flood-opacity="0.40"/>
+    </filter>
+    <filter id="glyphGlow" x="270" y="320" width="500" height="400" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#aura)"/>
+  <ellipse cx="164" cy="844" rx="300" ry="220" transform="rotate(34 164 844)" fill="#FF55C7" opacity="0.10"/>
+
+  <!-- Three overlapping elliptical glass bubbles form one irregular cluster. -->
+  <g filter="url(#clusterShadow)">
+    <ellipse cx="414" cy="425" rx="286" ry="238" transform="rotate(-18 414 425)" fill="url(#glassA)"/>
+    <ellipse cx="414" cy="425" rx="279" ry="231" transform="rotate(-18 414 425)" fill="none" stroke="url(#rimA)" stroke-width="13"/>
+
+    <ellipse cx="636" cy="468" rx="244" ry="304" transform="rotate(17 636 468)" fill="url(#glassB)"/>
+    <ellipse cx="636" cy="468" rx="237" ry="297" transform="rotate(17 636 468)" fill="none" stroke="url(#rimB)" stroke-width="13"/>
+
+    <ellipse cx="472" cy="674" rx="310" ry="202" transform="rotate(12 472 674)" fill="url(#glassC)"/>
+    <ellipse cx="472" cy="674" rx="303" ry="195" transform="rotate(12 472 674)" fill="none" stroke="url(#rimC)" stroke-width="13"/>
+  </g>
+
+  <path d="M221 350C267 250 352 207 469 221C360 234 290 289 251 379C233 420 199 398 221 350Z" fill="#FFFFFF" opacity="0.28"/>
+  <path d="M690 231C773 288 808 383 786 488C792 382 750 309 671 259C633 235 648 202 690 231Z" fill="#E9FFFF" opacity="0.17"/>
+  <path d="M679 735C612 816 509 843 399 806C510 825 594 793 651 716C678 679 708 700 679 735Z" fill="#A9FFFF" opacity="0.17"/>
+
+  <g opacity="0.28" filter="url(#glyphGlow)" stroke="#A6FAFF" stroke-width="66" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M342 402L492 512L342 622" fill="none"/>
+    <path d="M552 626H702"/>
+  </g>
+  <g stroke="url(#glyph)" stroke-width="62" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M342 402L492 512L342 622" fill="none"/>
+    <path d="M552 626H702"/>
+  </g>
+</svg>

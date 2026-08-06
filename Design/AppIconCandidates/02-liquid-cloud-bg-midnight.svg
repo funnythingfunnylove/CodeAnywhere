@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="108" y1="32" x2="914" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B0D38"/>
+      <stop offset="0.48" stop-color="#27186B"/>
+      <stop offset="1" stop-color="#075B79"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0" cy="0" r="1" gradientTransform="translate(270 170) rotate(48) scale(720)">
+      <stop stop-color="#765CFF" stop-opacity="0.30"/>
+      <stop offset="0.46" stop-color="#614DFF" stop-opacity="0.09"/>
+      <stop offset="1" stop-color="#614DFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="calmGlow" cx="0" cy="0" r="1" gradientTransform="translate(846 880) rotate(-132) scale(650)">
+      <stop stop-color="#42D8EA" stop-opacity="0.25"/>
+      <stop offset="0.52" stop-color="#25BACE" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#25BACE" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cloudGlass" x1="190" y1="220" x2="870" y2="790" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.43"/>
+      <stop offset="0.36" stop-color="#F0E7FF" stop-opacity="0.19"/>
+      <stop offset="0.70" stop-color="#A9F4FF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.28"/>
+    </linearGradient>
+    <linearGradient id="cloudRim" x1="178" y1="214" x2="894" y2="792" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.96"/>
+      <stop offset="0.34" stop-color="#FFFFFF" stop-opacity="0.30"/>
+      <stop offset="0.70" stop-color="#8DFFFF" stop-opacity="0.11"/>
+      <stop offset="1" stop-color="#D8FFFF" stop-opacity="0.77"/>
+    </linearGradient>
+    <linearGradient id="glyph" x1="328" y1="380" x2="704" y2="650" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E7FDFF"/>
+    </linearGradient>
+
+    <!-- Circle-derived cloud silhouette joined with tangent cubic Bezier arcs. -->
+    <path id="cloud" d="M275 770C185 770 112 698 112 608C112 527 173 459 252 449C270 331 371 242 493 242C630 242 746 344 760 474C839 501 890 573 890 651C890 715 843 762 782 770C636 781 414 781 275 770Z"/>
+    <clipPath id="cloudClip"><use href="#cloud"/></clipPath>
+
+    <filter id="shadow" x="44" y="116" width="956" height="756" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="36" stdDeviation="39" flood-color="#170056" flood-opacity="0.43"/>
+    </filter>
+    <filter id="blur" x="100" y="88" width="850" height="850" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="42"/>
+    </filter>
+    <filter id="glyphGlow" x="270" y="320" width="500" height="400" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+
+  <!-- Restrained two-tone background keeps attention on the glass cloud. -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#aura)"/>
+  <rect width="1024" height="1024" fill="url(#calmGlow)"/>
+
+  <!-- A single cloud-shaped Liquid Glass body. -->
+  <g filter="url(#shadow)">
+    <use href="#cloud" fill="url(#cloudGlass)"/>
+    <g clip-path="url(#cloudClip)">
+      <circle cx="316" cy="314" r="210" fill="#FFFFFF" opacity="0.07"/>
+      <circle cx="782" cy="708" r="246" fill="#5AF4FF" opacity="0.08"/>
+      <circle cx="134" cy="786" r="282" fill="#FF65D2" opacity="0.06"/>
+    </g>
+    <use href="#cloud" fill="none" stroke="url(#cloudRim)" stroke-width="14" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Specular highlights follow the circular cloud lobes. -->
+  <path d="M208 478C237 365 335 292 463 282C346 316 284 378 249 485C232 536 193 529 208 478Z" fill="#FFFFFF" opacity="0.32"/>
+  <path d="M827 643C798 709 727 745 624 752C717 726 766 687 794 619C810 581 844 604 827 643Z" fill="#8DFFFF" opacity="0.20"/>
+
+  <!-- Preserve the exact terminal mark. -->
+  <g transform="translate(40.96 40.96) scale(0.92)" opacity="0.27" filter="url(#glyphGlow)" stroke="#A6FAFF" stroke-width="66" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M342 402L492 512L342 622" fill="none"/>
+    <path d="M552 626H702"/>
+  </g>
+  <g transform="translate(40.96 40.96) scale(0.92)" stroke="url(#glyph)" stroke-width="62" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M342 402L492 512L342 622" fill="none"/>
+    <path d="M552 626H702"/>
+  </g>
+</svg>

@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="76" y1="54" x2="950" y2="972" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2D12C5"/>
+      <stop offset="0.50" stop-color="#6137E5"/>
+      <stop offset="1" stop-color="#08AFCF"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0" cy="0" r="1" gradientTransform="translate(724 240) rotate(128) scale(690)">
+      <stop stop-color="#A6FAFF" stop-opacity="0.62"/>
+      <stop offset="0.42" stop-color="#70E8FF" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#70E8FF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- The three paths are intentionally organic, asymmetric circles rather than ellipses. -->
+    <path id="blobA" d="M438 150C518 144 572 178 615 228C662 283 704 333 677 405C651 474 661 535 594 592C532 644 465 619 397 647C329 675 259 629 208 580C153 527 124 466 151 397C177 334 158 273 222 217C282 165 354 168 438 150Z"/>
+    <path id="blobB" d="M628 164C707 148 783 194 811 255C840 319 904 349 885 430C866 510 888 580 825 643C766 703 700 708 637 755C568 806 497 759 446 703C393 645 365 585 383 516C400 450 368 383 414 320C461 254 536 182 628 164Z"/>
+    <path id="blobC" d="M362 449C430 419 490 452 551 448C617 444 689 469 727 525C768 585 824 638 790 711C759 779 740 846 664 874C588 902 525 880 453 892C378 904 329 852 265 827C198 801 147 744 166 674C184 608 185 547 249 505C285 481 322 463 362 449Z"/>
+
+    <clipPath id="clipA"><use href="#blobA"/></clipPath>
+    <clipPath id="clipB"><use href="#blobB"/></clipPath>
+    <clipPath id="clipC"><use href="#blobC"/></clipPath>
+
+    <linearGradient id="glassA" x1="164" y1="172" x2="680" y2="650" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.36"/>
+      <stop offset="0.48" stop-color="#E7CDFF" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#D653F4" stop-opacity="0.24"/>
+    </linearGradient>
+    <linearGradient id="glassB" x1="392" y1="174" x2="880" y2="752" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.31"/>
+      <stop offset="0.50" stop-color="#BEEFFF" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#35DAF5" stop-opacity="0.25"/>
+    </linearGradient>
+    <linearGradient id="glassC" x1="166" y1="470" x2="780" y2="890" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB9EE" stop-opacity="0.26"/>
+      <stop offset="0.52" stop-color="#D8CFFF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#79F5EE" stop-opacity="0.25"/>
+    </linearGradient>
+
+    <linearGradient id="rimA" x1="170" y1="168" x2="675" y2="650" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.90"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#F0A4FF" stop-opacity="0.59"/>
+    </linearGradient>
+    <linearGradient id="rimB" x1="390" y1="170" x2="890" y2="750" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7FFFF" stop-opacity="0.79"/>
+      <stop offset="0.48" stop-color="#D7FFFF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#77FBFF" stop-opacity="0.72"/>
+    </linearGradient>
+    <linearGradient id="rimC" x1="160" y1="464" x2="784" y2="898" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE5FB" stop-opacity="0.67"/>
+      <stop offset="0.47" stop-color="#FFFFFF" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#B3FFF7" stop-opacity="0.78"/>
+    </linearGradient>
+    <linearGradient id="glyph" x1="330" y1="382" x2="704" y2="650" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E4FDFF"/>
+    </linearGradient>
+
+    <filter id="clusterShadow" x="68" y="86" width="900" height="890" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="34" stdDeviation="36" flood-color="#180052" flood-opacity="0.42"/>
+    </filter>
+    <filter id="glyphGlow" x="270" y="320" width="500" height="400" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#aura)"/>
+  <path d="M0 842C177 715 280 758 430 1024H0V842Z" fill="#FF58CB" opacity="0.08"/>
+
+  <g filter="url(#clusterShadow)">
+    <!-- Base colored glass layers. -->
+    <use href="#blobA" fill="url(#glassA)"/>
+    <use href="#blobB" fill="url(#glassB)"/>
+    <use href="#blobC" fill="url(#glassC)"/>
+
+    <!-- Explicit intersection colors make every overlap visible. -->
+    <g clip-path="url(#clipA)">
+      <use href="#blobB" fill="#F1A0FF" opacity="0.29"/>
+    </g>
+    <g clip-path="url(#clipB)">
+      <use href="#blobC" fill="#80F7FF" opacity="0.27"/>
+    </g>
+    <g clip-path="url(#clipC)">
+      <use href="#blobA" fill="#B892FF" opacity="0.25"/>
+    </g>
+    <g clip-path="url(#clipA)">
+      <g clip-path="url(#clipB)">
+        <use href="#blobC" fill="#E8FCFF" opacity="0.25"/>
+      </g>
+    </g>
+
+    <!-- Separate rims retain the three-bubble construction. -->
+    <use href="#blobA" fill="none" stroke="url(#rimA)" stroke-width="13"/>
+    <use href="#blobB" fill="none" stroke="url(#rimB)" stroke-width="13"/>
+    <use href="#blobC" fill="none" stroke="url(#rimC)" stroke-width="13"/>
+  </g>
+
+  <!-- Organic specular highlights follow each irregular surface. -->
+  <path d="M205 347C240 247 335 194 446 203C343 218 273 276 240 368C224 413 188 395 205 347Z" fill="#FFFFFF" opacity="0.27"/>
+  <path d="M650 211C750 241 816 327 823 432C800 333 741 271 646 242C601 228 606 198 650 211Z" fill="#E9FFFF" opacity="0.16"/>
+  <path d="M678 747C606 831 484 845 373 809C484 826 574 795 641 724C673 689 707 713 678 747Z" fill="#B8FFF8" opacity="0.17"/>
+
+  <g opacity="0.30" filter="url(#glyphGlow)" stroke="#A6FAFF" stroke-width="66" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M342 402L492 512L342 622" fill="none"/>
+    <path d="M552 626H702"/>
+  </g>
+  <g stroke="url(#glyph)" stroke-width="62" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M342 402L492 512L342 622" fill="none"/>
+    <path d="M552 626H702"/>
+  </g>
+</svg>
