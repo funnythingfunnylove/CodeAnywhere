@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="../../releases/latest">下载 macOS 版</a> ·
+  <a href="https://testflight.apple.com/join/bzBrXVS1">下载 iOS 公测版</a> ·
   <a href="#快速开始">快速开始</a> ·
   <a href="#从源码构建">从源码构建</a>
 </p>
@@ -43,11 +44,15 @@ CodeAnywhere 由两个原生 SwiftUI App 配合工作：
 
 从 [GitHub Releases](../../releases/latest) 下载 `CodeAnywhere-0.1.4-macOS-universal.dmg`，打开后将 **CodeAnywhere Mac** 拖入 `Applications`。
 
-### 2. 启动服务
+### 2. 安装 iOS / iPadOS App
+
+先在设备上安装 [TestFlight](https://apps.apple.com/app/testflight/id899247664)，再打开 [CodeAnywhere iOS 公测链接](https://testflight.apple.com/join/bzBrXVS1)，接受邀请并安装最新测试版本。当前公测构建为 `0.1.3 (5)`。
+
+### 3. 启动服务
 
 打开 Mac App，在 **Codex** 页面点击“启动服务器”，记下显示的局域网地址和端口。默认端口为 `4500`。
 
-### 3. 连接 iPhone / iPad
+### 4. 连接 iPhone / iPad
 
 在移动端填写 Mac 的局域网地址与相同端口。连接后即可：
 
@@ -55,7 +60,7 @@ CodeAnywhere 由两个原生 SwiftUI App 配合工作：
 - 选择项目、模型和思考级别创建任务
 - 实时查看回答、reasoning、命令与文件变更
 
-### 4. 开启 Bark 提醒（可选）
+### 5. 开启 Bark 提醒（可选）
 
 在 Mac App 的 **Settings** 中保存 Bark Server 与 Device Key，再到 **Notify** 调整模板、分组和声音。
 
