@@ -161,10 +161,9 @@ struct ChatView: View {
                 .disabled(
                     draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     || isSending
-                    || currentThread.activity == .active
                 )
                 .accessibilityLabel("发送")
-                .accessibilityHint(currentThread.activity == .active ? "当前任务完成后才能继续发送" : "")
+                .accessibilityHint(currentThread.activity == .active ? "如果服务端仍在执行，发送后会提示等待或停止当前任务" : "")
             }
         }
         .padding(10)

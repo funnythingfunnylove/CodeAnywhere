@@ -409,12 +409,6 @@ final class RemoteCodexStore: ObservableObject {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let needsResume = !activeThreadIDs.contains(threadID)
-        if needsResume, isThreadRunning(threadID) {
-            await loadThread(threadID)
-            if isThreadRunning(threadID) {
-                throw CodexClientError.threadHasActiveWriter
-            }
-        }
         var params: [String: JSONValue] = [
             "threadId": .string(threadID),
             "input": .array([.object(["type": .string("text"), "text": .string(trimmed)])]),
@@ -439,12 +433,6 @@ final class RemoteCodexStore: ObservableObject {
         activeThreadIDs.insert(threadID)
         await loadThread(threadID)
         await refreshThreads()
-    }
-
-    private func isThreadRunning(_ threadID: String) -> Bool {
-        let activity = threadDetails[threadID]?.thread.activity
-            ?? threads.first(where: { $0.id == threadID })?.activity
-        return activity == .active
     }
 
     func interrupt(threadID: String) async {

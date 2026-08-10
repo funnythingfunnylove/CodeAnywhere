@@ -29,6 +29,7 @@ private struct RemoteScheduledTaskList: View {
     let endpoint: ServerEndpoint
     let reportError: (String) -> Void
     @State private var editingTask: ScheduledTask?
+    @State private var selectedTask: ScheduledTask?
 
     var body: some View {
         ZStack {
@@ -40,22 +41,26 @@ private struct RemoteScheduledTaskList: View {
                     message: "在 iPhone 上配置，任务由 CodeAnywhere Mac 常驻执行"
                 )
             } else {
-                ScrollView {
-                    LazyVStack(spacing: DS.spacingSM) {
+                List {
+                    Section {
                         executionNotice
+                    }
+                    Section("定时任务") {
                         ForEach(taskStore.tasks) { task in
-                            ScheduledTaskRow(task: task) { enabled in
-                                update(task, enabled: enabled)
-                            } onDelete: {
-                                delete(task)
-                            } onEdit: {
-                                editingTask = task
-                            }
+                            ScheduledTaskListRow(
+                                task: task,
+                                onOpen: { selectedTask = task },
+                                onEnabledChange: { enabled in
+                                    update(task, enabled: enabled)
+                                },
+                                onDelete: { delete(task) },
+                                onEdit: { editingTask = task }
+                            )
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
                 }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
                 .refreshable { await refresh() }
             }
             if taskStore.isLoading, taskStore.tasks.isEmpty {
@@ -65,6 +70,9 @@ private struct RemoteScheduledTaskList: View {
         .task { await refresh() }
         .sheet(item: $editingTask) { task in
             ScheduledTaskEditorView(task: task)
+        }
+        .navigationDestination(item: $selectedTask) { task in
+            ScheduledTaskDetailView(task: task)
         }
     }
 
@@ -111,8 +119,9 @@ private struct RemoteScheduledTaskList: View {
     }
 }
 
-private struct ScheduledTaskRow: View {
+private struct ScheduledTaskListRow: View {
     let task: ScheduledTask
+    let onOpen: () -> Void
     let onEnabledChange: (Bool) -> Void
     let onDelete: () -> Void
     let onEdit: () -> Void
@@ -128,86 +137,61 @@ private struct ScheduledTaskRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: task.schedule.kind == .cron ? "calendar.badge.clock" : "clock.arrow.circlepath")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 42, height: 42)
-                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(task.title)
-                        .font(.headline)
-                        .lineLimit(2)
-                    Text(task.cwd)
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                HStack(spacing: 4) {
-                    Button(action: onEdit) {
-                        Image(systemName: "pencil")
-                            .frame(minWidth: 36, minHeight: 36)
+        HStack(spacing: 10) {
+            Button(action: onOpen) {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: task.schedule.kind == .cron ? "calendar.badge.clock" : "clock.arrow.circlepath")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Color.accentColor.opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        )
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(task.title)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(2)
+                        Text(task.schedule.summary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(task.executionState.title)
+                            Text("·")
+                            Text(task.cwd)
+                                .font(.caption2.monospaced())
+                                .lineLimit(1)
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(stateColor)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.accentColor)
-                    .accessibilityLabel("编辑任务")
-
-                    Button(role: .destructive) {
-                        showingDeleteConfirmation = true
-                    } label: {
-                        Image(systemName: "trash")
-                            .frame(minWidth: 36, minHeight: 36)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("删除任务")
                 }
-            }
-
-            HStack(spacing: 8) {
-                Label(task.schedule.summary, systemImage: task.schedule.kind == .cron ? "calendar" : "repeat")
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(Color.accentColor.opacity(0.10), in: Capsule())
-                Spacer()
-                Label(task.executionState.title, systemImage: task.executionState == .failed ? "exclamationmark.circle.fill" : "circle.fill")
-                    .foregroundStyle(stateColor)
-                    .font(.caption.weight(.semibold))
-                Toggle("启用", isOn: Binding(
-                    get: { task.isEnabled },
-                    set: onEnabledChange
-                ))
-                .labelsHidden()
-            }
-            .foregroundStyle(.secondary)
-
-            Text(task.prompt)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
-            if let nextRunAt = task.nextRunAt, task.isEnabled {
-                LabeledContent("下次执行") {
-                    Text(nextRunAt, format: .dateTime.month().day().hour().minute())
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            Toggle("启用", isOn: Binding(
+                get: { task.isEnabled },
+                set: onEnabledChange
+            ))
+            .labelsHidden()
+            .frame(width: 44)
+
+            Menu {
+                Button("编辑", systemImage: "pencil", action: onEdit)
+                Button("删除", systemImage: "trash", role: .destructive, action: {
+                    showingDeleteConfirmation = true
+                })
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
             }
-            if let message = task.executionMessage, !message.isEmpty {
-                Text(message)
-                    .font(.caption2)
-                    .foregroundStyle(task.executionState == .failed ? .red : .secondary)
-                    .lineLimit(2)
-            }
+            .accessibilityLabel("管理 \(task.title)")
         }
-        .padding(14)
-        .contentCard(radius: 12)
         .opacity(task.isEnabled ? 1 : 0.68)
         .accessibilityElement(children: .contain)
         .alert("删除定时任务？", isPresented: $showingDeleteConfirmation) {
@@ -215,6 +199,118 @@ private struct ScheduledTaskRow: View {
             Button("取消", role: .cancel) { }
         } message: {
             Text("“\(task.title)”将从 Mac 的任务列表中删除。")
+        }
+        .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 4))
+        .listRowSeparator(.visible)
+    }
+}
+
+private struct ScheduledTaskDetailView: View {
+    @EnvironmentObject private var store: RemoteCodexStore
+    @Environment(\.dismiss) private var dismiss
+    let task: ScheduledTask
+    @State private var draftTask: ScheduledTask
+    @State private var showingEditor = false
+    @State private var showingDeleteConfirmation = false
+
+    init(task: ScheduledTask) {
+        self.task = task
+        _draftTask = State(initialValue: task)
+    }
+
+    var body: some View {
+        List {
+            Section("任务") {
+                LabeledContent("名称", value: draftTask.title)
+                LabeledContent("项目路径") {
+                    Text(draftTask.cwd)
+                        .font(.caption.monospaced())
+                        .multilineTextAlignment(.trailing)
+                }
+                Toggle("启用", isOn: enabledBinding)
+            }
+            Section("计划") {
+                LabeledContent("类型", value: draftTask.schedule.kind.title)
+                LabeledContent("规则", value: draftTask.schedule.summary)
+                if let nextRunAt = draftTask.nextRunAt, draftTask.isEnabled {
+                    LabeledContent("下次执行") {
+                        Text(nextRunAt, format: .dateTime.month().day().hour().minute())
+                    }
+                }
+            }
+            Section("执行") {
+                LabeledContent("状态", value: draftTask.executionState.title)
+                if let lastRunAt = draftTask.lastRunAt {
+                    LabeledContent("上次执行") {
+                        Text(lastRunAt, format: .dateTime.month().day().hour().minute())
+                    }
+                }
+                if let message = draftTask.executionMessage, !message.isEmpty {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(draftTask.executionState == .failed ? .red : .secondary)
+                }
+            }
+            Section("提示词") {
+                Text(draftTask.prompt)
+                    .textSelection(.enabled)
+            }
+        }
+        .navigationTitle("任务详情")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("编辑", systemImage: "pencil") { showingEditor = true }
+                    Button("删除", systemImage: "trash", role: .destructive) {
+                        showingDeleteConfirmation = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("管理任务")
+            }
+        }
+        .sheet(isPresented: $showingEditor) {
+            ScheduledTaskEditorView(task: draftTask)
+        }
+        .onChange(of: store.scheduledTasks.tasks) { _, tasks in
+            if let latest = tasks.first(where: { $0.id == draftTask.id }) {
+                draftTask = latest
+            }
+        }
+        .alert("删除定时任务？", isPresented: $showingDeleteConfirmation) {
+            Button("删除", role: .destructive) { delete() }
+            Button("取消", role: .cancel) { }
+        } message: {
+            Text("“\(draftTask.title)”将从 Mac 的任务列表中删除。")
+        }
+    }
+
+    private var enabledBinding: Binding<Bool> {
+        Binding(
+            get: { draftTask.isEnabled },
+            set: { enabled in
+                draftTask.isEnabled = enabled
+                Task {
+                    do {
+                        try await store.scheduledTasks.update(draftTask, endpoint: store.endpoint)
+                    } catch {
+                        store.errorMessage = error.localizedDescription
+                    }
+                }
+            }
+        )
+    }
+
+    private func delete() {
+        Task {
+            do {
+                try await store.scheduledTasks.delete(id: draftTask.id, endpoint: store.endpoint)
+                dismiss()
+            } catch {
+                store.errorMessage = error.localizedDescription
+            }
         }
     }
 }

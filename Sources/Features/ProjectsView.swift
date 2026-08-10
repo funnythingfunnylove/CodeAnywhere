@@ -207,29 +207,11 @@ private struct ProjectDetailView: View {
                 EmptyStateView(icon: "bubble.left", title: "项目已就绪", message: "为这个项目创建第一段对话")
             } else {
                 List(projectThreads) { thread in
-                    Button {
-                        KeyboardDismiss.dismiss()
-                        selectedThread = thread
-                    } label: {
-                        VStack(alignment: .leading, spacing: 7) {
-                            Text(thread.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                            HStack {
-                                StatusPill(activity: thread.activity, compact: true)
-                                Spacer()
-                                Text(thread.updatedAt, format: .relative(presentation: .named)).font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .contentCard(radius: 12)
-                    .listRowInsets(EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden, edges: .all)
+                    ConversationListRow(
+                        thread: thread,
+                        showsProject: false,
+                        onOpen: { selectedThread = thread }
+                    )
                 }
                 .scrollContentBackground(.hidden)
             }

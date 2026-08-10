@@ -316,6 +316,29 @@ final class ModelsTests: XCTestCase {
     }
 
     @MainActor
+    func testStaleActiveStatusDoesNotBlockACompletedThreadFromResuming() async throws {
+        let client = StaleActiveCodexClient()
+        let suiteName = "CodeAnywhereTests.StaleActive.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = RemoteCodexStore(client: client, defaults: defaults)
+
+        await store.loadThread("stale-active-thread")
+        XCTAssertEqual(store.threadDetails["stale-active-thread"]?.thread.activity, .active)
+
+        try await store.send(
+            prompt: "继续已完成的对话",
+            threadID: "stale-active-thread",
+            modelID: nil,
+            effort: nil
+        )
+
+        let methods = await client.recordedMethods()
+        XCTAssertTrue(methods.contains("thread/resume"))
+        XCTAssertTrue(methods.contains("turn/start"))
+    }
+
+    @MainActor
     func testNewConversationAndFirstTurnUseFullAccessWithoutApprovals() async throws {
         let client = RecordingCodexClient()
         let suiteName = "CodeAnywhereTests.FullAccess.\(UUID().uuidString)"
@@ -542,6 +565,26 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(thread.projectName, "MyProject")
         XCTAssertEqual(thread.activity, .active)
         XCTAssertTrue(thread.isPinned)
+    }
+
+    func testThreadUsesLatestTurnStatusOverStaleThreadStatus() throws {
+        let json: JSONValue = .object([
+            "id": .string("thread-completed"),
+            "cwd": .string("/Users/demo/MyProject"),
+            "createdAt": .number(1_700_000_000),
+            "updatedAt": .number(1_700_000_100),
+            "status": .object(["type": .string("active")]),
+            "turns": .array([
+                .object([
+                    "id": .string("turn-1"),
+                    "status": .string("completed"),
+                    "items": .array([])
+                ])
+            ])
+        ])
+
+        let thread = try XCTUnwrap(CodexThread(json: json))
+        XCTAssertEqual(thread.activity, .idle)
     }
 
     func testThreadDetailExtractsConversationItems() throws {
@@ -970,6 +1013,44 @@ private actor ActiveWriterCodexClient: CodexClientProtocol {
     }
 
     func recordedMethods() -> [String] { methods }
+}
+
+private actor StaleActiveCodexClient: CodexClientProtocol {
+    nonisolated let notifications: AsyncStream<RPCNotification> = AsyncStream { continuation in
+        continuation.finish()
+    }
+
+    private var methods: [String] = []
+
+    func connect() async throws -> String { "Test Codex" }
+
+    func disconnect() async {}
+
+    func call(method: String, params: [String: JSONValue]) async throws -> JSONValue {
+        methods.append(method)
+        switch method {
+        case "thread/read", "thread/resume":
+            return .object(["thread": Self.threadJSON])
+        case "turn/start":
+            return .object([:])
+        case "thread/list":
+            return .object(["data": .array([])])
+        default:
+            throw CodexClientError.server(code: -1, message: "Unexpected method: \(method)")
+        }
+    }
+
+    func recordedMethods() -> [String] { methods }
+
+    private static let threadJSON: JSONValue = .object([
+        "id": .string("stale-active-thread"),
+        "cwd": .string("/tmp/project"),
+        "preview": .string("已完成但状态未刷新"),
+        "createdAt": .number(1_700_000_000),
+        "updatedAt": .number(1_700_000_100),
+        "status": .object(["type": .string("active")]),
+        "turns": .array([])
+    ])
 }
 
 private actor FailingFirstTurnCodexClient: CodexClientProtocol {

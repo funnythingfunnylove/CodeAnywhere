@@ -188,6 +188,16 @@ enum ThreadActivity: String, Codable, Sendable {
     case systemError
     case unknown
 
+    init(codexStatus: String) {
+        switch codexStatus.lowercased() {
+        case "active", "inprogress", "running": self = .active
+        case "idle", "completed", "interrupted", "cancelled", "canceled": self = .idle
+        case "notloaded": self = .notLoaded
+        case "systemerror", "failed", "error", "errored": self = .systemError
+        default: self = .unknown
+        }
+    }
+
     var title: String {
         switch self {
         case .active: return "运行中"
@@ -232,8 +242,12 @@ struct CodexThread: Identifiable, Hashable, Sendable {
         updatedAt = Self.date(from: json["updatedAt"]?.intValue)
         isPinned = json["isPinned"]?.boolValue ?? false
         isArchived = json["archived"]?.boolValue ?? false
-        let status = json["status"]?["type"]?.stringValue ?? json["status"]?.stringValue ?? "unknown"
-        activity = ThreadActivity(rawValue: status) ?? .unknown
+        let latestTurnStatus = json["turns"]?.arrayValue?.last?["status"]?.stringValue
+        let status = latestTurnStatus
+            ?? json["status"]?["type"]?.stringValue
+            ?? json["status"]?.stringValue
+            ?? "unknown"
+        activity = ThreadActivity(codexStatus: status)
     }
 
     private static func date(from rawValue: Int?) -> Date {

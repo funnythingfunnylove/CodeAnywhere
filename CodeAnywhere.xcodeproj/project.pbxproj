@@ -16,6 +16,7 @@
 		1A8ED0E0B406A162D1DCC8D8 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F55DAD11A195B14C816EDC05 /* PrivacyInfo.xcprivacy */; };
 		1B90DFAB351070CBE72DF34F /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC9B6F6031900E1D1B3D11BA /* JSONValue.swift */; };
 		210B242158424DA7806BCEEA /* ServerProcessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B8DCD4AF7005B0D477016F5 /* ServerProcessController.swift */; };
+		2247B7FC42D22EA42D19C379 /* ConversationListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D33D160BE81CE210250A39A7 /* ConversationListRow.swift */; };
 		23B33C3B847CB498598DAA9D /* ScheduledTasks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6389D29503F07F61CBBEF500 /* ScheduledTasks.swift */; };
 		2780570A21D1B053FDF6D584 /* ProcessLogRedactorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1339A7292A8682CA8CB5E2DD /* ProcessLogRedactorTests.swift */; };
 		2D1997E9626ED7D54BFAD74C /* MessageFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE15CD4F08B5322C9A1252DE /* MessageFormatting.swift */; };
@@ -125,6 +126,7 @@
 		B915C0F8C4E05E4D369EB9AF /* CodexClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexClient.swift; sourceTree = "<group>"; };
 		BBEAFF901967BCB2AEB32399 /* MacJSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacJSONValue.swift; sourceTree = "<group>"; };
 		C2964DBE3F92D8003A13AD6D /* CodexInstallationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexInstallationControllerTests.swift; sourceTree = "<group>"; };
+		D33D160BE81CE210250A39A7 /* ConversationListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationListRow.swift; sourceTree = "<group>"; };
 		D3828A26A92E38D6B1F36F49 /* CodexInstallationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexInstallationController.swift; sourceTree = "<group>"; };
 		D3ADA2792DCE8CE66F2DD006 /* CompletionMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionMonitor.swift; sourceTree = "<group>"; };
 		D5D4B1691372A07AD163698A /* BarkContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarkContractTests.swift; sourceTree = "<group>"; };
@@ -217,6 +219,7 @@
 			children = (
 				252AABC9F5D8398AB5B4196A /* ChatView.swift */,
 				75CE409448A13D8402E82EEF /* ConnectionView.swift */,
+				D33D160BE81CE210250A39A7 /* ConversationListRow.swift */,
 				7811CE42EA96277DC55A3BC7 /* DashView.swift */,
 				EF8CE282945C656F15522A01 /* NewConversationView.swift */,
 				10A0A2D39375F8A681CD6F2B /* ProjectsView.swift */,
@@ -500,6 +503,7 @@
 				E06EDC3F6D6431E51E11056B /* CodeAnywhereApp.swift in Sources */,
 				2D75BD689504A937D7E705BC /* CodexClient.swift in Sources */,
 				0DAD789327A32E47B75DE393 /* ConnectionView.swift in Sources */,
+				2247B7FC42D22EA42D19C379 /* ConversationListRow.swift in Sources */,
 				8F52B45B15B8F8B8E5922808 /* DashView.swift in Sources */,
 				76258289800CB73128BB756A /* DesignSystem.swift in Sources */,
 				1B90DFAB351070CBE72DF34F /* JSONValue.swift in Sources */,

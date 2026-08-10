@@ -92,7 +92,7 @@ struct SessionsView: View {
 
     @ViewBuilder
     private func sessionRow(_ thread: CodexThread) -> some View {
-        SessionRow(
+        ConversationListRow(
             thread: thread,
             onOpen: { selectedThread = thread },
             onPin: { store.toggleThreadPin(thread.id) },
@@ -162,91 +162,6 @@ struct StableSearchField: View {
                 .strokeBorder(.quaternary, lineWidth: 0.5)
         }
         .accessibilityElement(children: .contain)
-    }
-}
-
-private struct SessionRow: View {
-    let thread: CodexThread
-    let onOpen: () -> Void
-    let onPin: () -> Void
-    let onArchive: () -> Void
-    @State private var showingArchiveConfirmation = false
-
-    var body: some View {
-        Button {
-            KeyboardDismiss.dismiss()
-            onOpen()
-        } label: {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: thread.activity == .active ? "sparkles" : "bubble.left.fill")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(thread.activity == .active ? .orange : Color.accentColor)
-                    .frame(width: 40, height: 40)
-                    .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(thread.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                    HStack(spacing: 6) {
-                        Label(thread.projectName, systemImage: "folder")
-                            .lineLimit(1)
-                        Text("·")
-                        Text(thread.updatedAt, format: .relative(presentation: .named))
-                            .lineLimit(1)
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 4)
-                StatusPill(activity: thread.activity, compact: true)
-            }
-            .contentShape(Rectangle())
-            .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentCard(radius: 12)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .contain)
-        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden, edges: .all)
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button {
-                KeyboardDismiss.dismiss()
-                onPin()
-            } label: {
-                Label(thread.isPinned ? "取消固定" : "固定", systemImage: thread.isPinned ? "pin.slash" : "pin")
-            }
-            .tint(.accentColor)
-        }
-        .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            if thread.isArchived {
-                Button {
-                    KeyboardDismiss.dismiss()
-                    onArchive()
-                } label: {
-                    Label("取消归档", systemImage: "arrow.uturn.backward")
-                }
-                .tint(.orange)
-            } else {
-                Button(role: .destructive) {
-                    KeyboardDismiss.dismiss()
-                    showingArchiveConfirmation = true
-                } label: {
-                    Label("归档", systemImage: "archivebox")
-                }
-            }
-        }
-        .alert("归档对话？", isPresented: $showingArchiveConfirmation) {
-            Button("归档", role: .destructive, action: onArchive)
-            Button("取消", role: .cancel) { }
-        } message: {
-            Text("“\(thread.title)”将从所有对话中移到已归档。")
-        }
     }
 }
 

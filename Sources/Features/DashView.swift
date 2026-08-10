@@ -13,6 +13,7 @@ struct DashView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.spacingMD) {
                     connectionCard
+                    serverProfilesCard
                     summaryGrid
                     runtimeCard
                 }
@@ -75,6 +76,42 @@ struct DashView: View {
             DashMetricCard(title: "异常", value: failedCount, systemImage: "exclamationmark.triangle.fill", color: .red)
             DashMetricCard(title: "对话总数", value: store.threads.count, systemImage: "bubble.left.and.bubble.right", color: .accentColor)
         }
+    }
+
+    private var serverProfilesCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Label("CodeAnywhere 端点", systemImage: "server.rack")
+                .font(.headline)
+                .padding(.bottom, 8)
+
+            ForEach(store.servers) { server in
+                HStack(spacing: 10) {
+                    Image(systemName: server.id == store.activeServerID ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(server.id == store.activeServerID ? .green : .secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(server.displayName)
+                            .font(.subheadline.weight(.semibold))
+                        Text(server.displayAddress)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    if server.id == store.activeServerID {
+                        Text(store.connectionState.isConnected ? "已连接" : "当前")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(store.connectionState.isConnected ? .green : .orange)
+                    }
+                }
+                .padding(.vertical, 7)
+                .overlay(alignment: .bottom) {
+                    if server.id != store.servers.last?.id { Divider().opacity(0.35) }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(server.displayName)，\(server.displayAddress)\(server.id == store.activeServerID ? "，当前服务端" : "")")
+            }
+        }
+        .padding(14)
+        .glassSurface(radius: DS.radiusMD)
     }
 
     private var runtimeCard: some View {
