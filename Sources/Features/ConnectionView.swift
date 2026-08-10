@@ -89,7 +89,7 @@ struct ConnectionView: View {
 
             Button {
                 focusedField = nil
-                store.endpoint = ServerEndpoint(host: host, port: Int(port) ?? 0)
+                store.updateActiveEndpoint(ServerEndpoint(host: host, port: Int(port) ?? 0))
                 Task { await store.connect() }
             } label: {
                 HStack {
@@ -119,4 +119,3 @@ struct ConnectionView: View {
         .glassSurface()
     }
 }
-

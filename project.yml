@@ -19,7 +19,10 @@ targets:
     type: application
     platform: iOS
     sources:
-      - Sources
+      - path: Sources
+        excludes:
+          - CodeAnywhereCore/**
+          - CodeAnywhereCLI/**
       - SourcesShared
       - Resources
     settings:
@@ -61,8 +64,9 @@ targets:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - Tests
-      - Tests/ScheduledTasksTests.swift
+      - path: Tests
+        excludes:
+          - CodeAnywhereCoreTests/**
     dependencies:
       - target: CodeAnywhere
     settings:

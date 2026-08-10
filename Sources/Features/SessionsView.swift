@@ -177,13 +177,13 @@ private struct SessionRow: View {
             KeyboardDismiss.dismiss()
             onOpen()
         } label: {
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
                 Image(systemName: thread.activity == .active ? "sparkles" : "bubble.left.fill")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(thread.activity == .active ? .orange : Color.accentColor)
-                    .frame(width: 32, height: 32)
-                    .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
+                    .frame(width: 40, height: 40)
+                    .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: 6) {
                     Text(thread.title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
@@ -202,13 +202,14 @@ private struct SessionRow: View {
                 StatusPill(activity: thread.activity, compact: true)
             }
             .contentShape(Rectangle())
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentCard(radius: 12)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
         .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
         .listRowBackground(Color.clear)

@@ -172,6 +172,57 @@ final class ModelsTests: XCTestCase {
     }
 
     @MainActor
+    func testServerProfilesMigrateLegacyEndpointAndPersistAdditionalServers() throws {
+        let suiteName = "CodeAnywhereTests.ServerProfiles.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let legacyEndpoint = ServerEndpoint(host: "192.168.1.4", port: 4500)
+        defaults.set(try JSONEncoder().encode(legacyEndpoint), forKey: StorageKey.endpoint)
+
+        var store: RemoteCodexStore? = RemoteCodexStore(defaults: defaults)
+        XCTAssertEqual(store?.servers.count, 1)
+        XCTAssertEqual(store?.endpoint, legacyEndpoint)
+        XCTAssertEqual(store?.servers.first?.endpoint, legacyEndpoint)
+
+        let addedID = try XCTUnwrap(store?.addServer(
+            name: "家里 Debian",
+            endpoint: ServerEndpoint(host: "192.168.1.5", port: 4500)
+        ))
+        XCTAssertEqual(store?.servers.count, 2)
+        XCTAssertEqual(store?.servers.last?.id, addedID)
+
+        store = nil
+        let restoredStore = RemoteCodexStore(defaults: defaults)
+        XCTAssertEqual(restoredStore.servers.count, 2)
+        XCTAssertEqual(restoredStore.servers.last?.displayName, "家里 Debian")
+        XCTAssertEqual(restoredStore.activeServerID, restoredStore.servers.first?.id)
+    }
+
+    @MainActor
+    func testLocalProjectStateIsIsolatedPerServer() throws {
+        let suiteName = "CodeAnywhereTests.ServerLocalState.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var store: RemoteCodexStore? = RemoteCodexStore(defaults: defaults)
+        let firstID = try XCTUnwrap(store?.activeServerID)
+        store?.toggleProjectPin("/tmp/FirstServerOnly")
+        let secondID = try XCTUnwrap(store?.addServer(
+            name: "第二台",
+            endpoint: ServerEndpoint(host: "192.168.1.5", port: 4500)
+        ))
+
+        defaults.set(secondID.uuidString, forKey: StorageKey.activeServerID)
+        store = nil
+        store = RemoteCodexStore(defaults: defaults)
+        XCTAssertFalse(store?.pinnedProjectPaths.contains("/tmp/FirstServerOnly") == true)
+
+        defaults.set(firstID.uuidString, forKey: StorageKey.activeServerID)
+        store = nil
+        store = RemoteCodexStore(defaults: defaults)
+        XCTAssertTrue(store?.pinnedProjectPaths.contains("/tmp/FirstServerOnly") == true)
+    }
+
+    @MainActor
     func testStoreClearsLegacyIOSReminderState() throws {
         let suiteName = "CodeAnywhereTests.LegacyIOSReminderState.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -235,6 +286,33 @@ final class ModelsTests: XCTestCase {
             turnStartParams["sandboxPolicy"]?["type"]?.stringValue,
             "dangerFullAccess"
         )
+    }
+
+    @MainActor
+    func testActiveWriterConflictBecomesActionableBusyError() async throws {
+        let client = ActiveWriterCodexClient()
+        let suiteName = "CodeAnywhereTests.ActiveWriter.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = RemoteCodexStore(client: client, defaults: defaults)
+
+        do {
+            try await store.send(
+                prompt: "继续处理",
+                threadID: "busy-thread",
+                modelID: nil,
+                effort: nil
+            )
+            XCTFail("活动 writer 应阻止重复开始 Turn")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "该对话仍有任务在执行，请等待完成或先停止当前任务"
+            )
+        }
+
+        let methods = await client.recordedMethods()
+        XCTAssertEqual(methods, ["thread/resume", "thread/read"])
     }
 
     @MainActor
@@ -855,6 +933,43 @@ private actor RecordingCodexClient: CodexClientProtocol {
         "status": .object(["type": .string("idle")]),
         "turns": .array([])
     ])
+}
+
+private actor ActiveWriterCodexClient: CodexClientProtocol {
+    nonisolated let notifications: AsyncStream<RPCNotification> = AsyncStream { continuation in
+        continuation.finish()
+    }
+
+    private var methods: [String] = []
+
+    func connect() async throws -> String { "Test Codex" }
+
+    func disconnect() async {}
+
+    func call(method: String, params: [String: JSONValue]) async throws -> JSONValue {
+        methods.append(method)
+        switch method {
+        case "thread/resume":
+            throw CodexClientError.server(
+                code: -32_600,
+                message: "thread busy-thread already has an active writer"
+            )
+        case "thread/read":
+            return .object(["thread": .object([
+                "id": .string("busy-thread"),
+                "cwd": .string("/tmp/project"),
+                "preview": .string("正在执行"),
+                "createdAt": .number(1_700_000_000),
+                "updatedAt": .number(1_700_000_100),
+                "status": .object(["type": .string("active")]),
+                "turns": .array([])
+            ])])
+        default:
+            throw CodexClientError.server(code: -1, message: "Unexpected method: \(method)")
+        }
+    }
+
+    func recordedMethods() -> [String] { methods }
 }
 
 private actor FailingFirstTurnCodexClient: CodexClientProtocol {

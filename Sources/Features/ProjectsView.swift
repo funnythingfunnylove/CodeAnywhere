@@ -211,7 +211,7 @@ private struct ProjectDetailView: View {
                         KeyboardDismiss.dismiss()
                         selectedThread = thread
                     } label: {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 7) {
                             Text(thread.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                             HStack {
                                 StatusPill(activity: thread.activity, compact: true)
@@ -219,10 +219,16 @@ private struct ProjectDetailView: View {
                                 Text(thread.updatedAt, format: .relative(presentation: .named)).font(.caption).foregroundStyle(.secondary)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
                     }
                     .buttonStyle(.plain)
-                    .listRowInsets(EdgeInsets(top: 5, leading: 8, bottom: 5, trailing: 8))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .contentCard(radius: 12)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8))
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden, edges: .all)
                 }
                 .scrollContentBackground(.hidden)

@@ -1,9 +1,19 @@
 import Foundation
 
+private struct ServerLocalState: Codable, Equatable {
+    var savedProjectPaths: [String] = []
+    var pinnedProjectPaths: [String] = []
+    var pinnedThreadIDs: [String] = []
+    var archivedProjectPaths: [String] = []
+}
+
 @MainActor
 final class RemoteCodexStore: ObservableObject {
+    @Published private(set) var servers: [ServerProfile]
+    @Published private(set) var activeServerID: UUID
     @Published var endpoint: ServerEndpoint
     @Published private(set) var connectionState: ConnectionState = .disconnected
+    @Published private(set) var isMainInterfaceVisible = false
     @Published private(set) var threads: [CodexThread] = []
     @Published private(set) var models: [CodexModel] = []
     @Published private(set) var threadDetails: [String: ThreadDetail] = [:]
@@ -19,6 +29,7 @@ final class RemoteCodexStore: ObservableObject {
 
     private var client: (any CodexClientProtocol)?
     private let defaults: UserDefaults
+    private var localStateByServerID: [UUID: ServerLocalState]
     private var activeThreadIDs: Set<String> = []
     private var isConnecting = false
     private var threadRefreshGeneration = 0
@@ -33,14 +44,29 @@ final class RemoteCodexStore: ObservableObject {
         self.defaults = defaults
         self.scheduledTasks = scheduledTasks ?? RemoteScheduledTaskStore()
         LegacyIOSReminderState.clear(defaults: defaults)
-        endpoint = Self.loadEndpoint(from: defaults)
+        let loadedServers = Self.loadServers(from: defaults)
+        servers = loadedServers.servers
+        activeServerID = loadedServers.activeServerID
+        endpoint = loadedServers.servers.first(where: { $0.id == loadedServers.activeServerID })?.endpoint
+            ?? loadedServers.servers[0].endpoint
         self.client = client
         remoteFileCache.totalCostLimit = 64 * 1_024 * 1_024
-        savedProjectPaths = defaults.stringArray(forKey: StorageKey.projects) ?? []
-        pinnedProjectPaths = Set(defaults.stringArray(forKey: StorageKey.pinnedProjects) ?? [])
-        pinnedThreadIDs = Set(defaults.stringArray(forKey: StorageKey.pinnedThreads) ?? [])
-        archivedProjectPaths = Set(defaults.stringArray(forKey: StorageKey.archivedProjects) ?? [])
+        localStateByServerID = Self.loadLocalStates(
+            from: defaults,
+            activeServerID: loadedServers.activeServerID
+        )
+        let activeLocalState = localStateByServerID[loadedServers.activeServerID] ?? ServerLocalState()
+        savedProjectPaths = activeLocalState.savedProjectPaths
+        pinnedProjectPaths = Set(activeLocalState.pinnedProjectPaths)
+        pinnedThreadIDs = Set(activeLocalState.pinnedThreadIDs)
+        archivedProjectPaths = Set(activeLocalState.archivedProjectPaths)
         requestedThreadID = defaults.string(forKey: StorageKey.pendingThreadID)
+        if defaults.data(forKey: StorageKey.servers) == nil {
+            persistServers()
+        }
+        if defaults.data(forKey: StorageKey.serverStates) == nil {
+            persistCurrentLocalState()
+        }
     }
 
     deinit {
@@ -101,9 +127,9 @@ final class RemoteCodexStore: ObservableObject {
         }
         isConnecting = true
         defer { isConnecting = false }
-        await disconnect(userInitiated: false)
+        await disconnect(userInitiated: false, clearRemoteState: true)
         connectionState = .connecting
-        persistEndpoint()
+        persistActiveServer()
         ConnectionPreferences.setAutoConnect(true, defaults: defaults)
 
         let client: any CodexClientProtocol = CodexWebSocketClient(endpoint: endpoint)
@@ -111,6 +137,7 @@ final class RemoteCodexStore: ObservableObject {
         do {
             let server = try await client.connect()
             connectionState = .connected(server: server)
+            isMainInterfaceVisible = true
             startListening(to: client)
             async let threadRefresh: Void = refreshThreads()
             async let modelRefresh: Void = refreshModels()
@@ -123,9 +150,10 @@ final class RemoteCodexStore: ObservableObject {
         }
     }
 
-    func disconnect(userInitiated: Bool = true) async {
+    func disconnect(userInitiated: Bool = true, clearRemoteState: Bool = true) async {
         if userInitiated {
             ConnectionPreferences.setAutoConnect(false, defaults: defaults)
+            isMainInterfaceVisible = false
         }
         notificationTask?.cancel()
         notificationTask = nil
@@ -134,6 +162,96 @@ final class RemoteCodexStore: ObservableObject {
         activeThreadIDs.removeAll()
         connectionState = .disconnected
         streamingItems.removeAll()
+        if clearRemoteState {
+            threads.removeAll()
+            models.removeAll()
+            threadDetails.removeAll()
+            scheduledTasks.reset()
+            remoteFileCache.removeAllObjects()
+        }
+    }
+
+    func updateActiveEndpoint(_ endpoint: ServerEndpoint) {
+        self.endpoint = endpoint
+        updateServerProfile(id: activeServerID, name: nil, endpoint: endpoint)
+    }
+
+    @discardableResult
+    func addServer(name: String, endpoint: ServerEndpoint) -> UUID? {
+        guard endpoint.isValid else {
+            errorMessage = "请输入有效的 IP 与端口"
+            return nil
+        }
+        let profile = ServerProfile(name: name, endpoint: endpoint)
+        servers.append(profile)
+        localStateByServerID[profile.id] = ServerLocalState()
+        persistServers()
+        persistLocalStates()
+        return profile.id
+    }
+
+    func updateServer(id: UUID, name: String, endpoint: ServerEndpoint) async {
+        guard endpoint.isValid else {
+            errorMessage = "请输入有效的 IP 与端口"
+            return
+        }
+        updateServerProfile(id: id, name: name, endpoint: endpoint)
+        guard id == activeServerID else { return }
+        await connect()
+    }
+
+    func switchServer(to id: UUID) async {
+        guard let profile = servers.first(where: { $0.id == id }) else { return }
+        guard id != activeServerID else {
+            if !connectionState.isConnected { await connect() }
+            return
+        }
+        persistCurrentLocalState()
+        await disconnect(userInitiated: false, clearRemoteState: true)
+        activeServerID = id
+        endpoint = profile.endpoint
+        restoreLocalState(for: id)
+        persistActiveServer()
+        await connect()
+    }
+
+    func removeServer(id: UUID) async {
+        guard servers.count > 1 else {
+            errorMessage = "至少需要保留一个 Codex Anywhere 服务端"
+            return
+        }
+        guard servers.contains(where: { $0.id == id }) else { return }
+        let wasActive = id == activeServerID
+        let nextID = servers.first(where: { $0.id != id })?.id
+        if wasActive { persistCurrentLocalState() }
+        servers.removeAll { $0.id == id }
+        localStateByServerID[id] = nil
+        persistServers()
+        persistLocalStates()
+        guard wasActive, let nextID else { return }
+        activeServerID = nextID
+        endpoint = servers.first(where: { $0.id == nextID })?.endpoint ?? .fallback
+        restoreLocalState(for: nextID)
+        persistActiveServer()
+        await disconnect(userInitiated: false, clearRemoteState: true)
+        await connect()
+    }
+
+    private func updateServerProfile(id: UUID, name: String?, endpoint: ServerEndpoint) {
+        guard let index = servers.firstIndex(where: { $0.id == id }) else { return }
+        if let name { servers[index].name = name }
+        servers[index].endpoint = endpoint
+        if id == activeServerID { self.endpoint = endpoint }
+        persistServers()
+        persistEndpoint()
+    }
+
+    private func persistActiveServer() {
+        if let index = servers.firstIndex(where: { $0.id == activeServerID }) {
+            servers[index].endpoint = endpoint
+        }
+        persistServers()
+        persistEndpoint()
     }
 
     func refreshThreads() async {
@@ -166,7 +284,7 @@ final class RemoteCodexStore: ObservableObject {
             }
             guard generation == threadRefreshGeneration else { return }
             threads = collectedByID.values.sorted { $0.updatedAt > $1.updatedAt }
-            defaults.set(pinnedThreadIDs.sorted(), forKey: StorageKey.pinnedThreads)
+            persistCurrentLocalState()
         } catch {
             guard generation == threadRefreshGeneration else { return }
             report(error)
@@ -290,6 +408,13 @@ final class RemoteCodexStore: ObservableObject {
         guard let client else { throw CodexClientError.disconnected }
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        let needsResume = !activeThreadIDs.contains(threadID)
+        if needsResume, isThreadRunning(threadID) {
+            await loadThread(threadID)
+            if isThreadRunning(threadID) {
+                throw CodexClientError.threadHasActiveWriter
+            }
+        }
         var params: [String: JSONValue] = [
             "threadId": .string(threadID),
             "input": .array([.object(["type": .string("text"), "text": .string(trimmed)])]),
@@ -298,18 +423,28 @@ final class RemoteCodexStore: ObservableObject {
         ]
         if let modelID, !modelID.isEmpty { params["model"] = .string(modelID) }
         if let effort, !effort.isEmpty { params["effort"] = .string(effort) }
-        let needsResume = !activeThreadIDs.contains(threadID)
         streamingItems[threadID] = nil
-        try await ThreadTurnStarter.start(
-            threadID: threadID,
-            params: params,
-            resumeThread: needsResume
-        ) { method, params in
-            try await client.call(method: method, params: params)
+        do {
+            try await ThreadTurnStarter.start(
+                threadID: threadID,
+                params: params,
+                resumeThread: needsResume
+            ) { method, params in
+                try await client.call(method: method, params: params)
+            }
+        } catch let error as CodexClientError where error.isActiveWriterConflict {
+            await loadThread(threadID)
+            throw CodexClientError.threadHasActiveWriter
         }
         activeThreadIDs.insert(threadID)
         await loadThread(threadID)
         await refreshThreads()
+    }
+
+    private func isThreadRunning(_ threadID: String) -> Bool {
+        let activity = threadDetails[threadID]?.thread.activity
+            ?? threads.first(where: { $0.id == threadID })?.activity
+        return activity == .active
     }
 
     func interrupt(threadID: String) async {
@@ -330,7 +465,7 @@ final class RemoteCodexStore: ObservableObject {
         } else {
             pinnedThreadIDs.insert(threadID)
         }
-        defaults.set(pinnedThreadIDs.sorted(), forKey: StorageKey.pinnedThreads)
+        persistCurrentLocalState()
         if let index = threads.firstIndex(where: { $0.id == threadID }) {
             threads[index].isPinned = pinnedThreadIDs.contains(threadID)
         }
@@ -362,12 +497,12 @@ final class RemoteCodexStore: ObservableObject {
 
     func archiveProject(_ path: String) {
         archivedProjectPaths.insert(path)
-        defaults.set(archivedProjectPaths.sorted(), forKey: StorageKey.archivedProjects)
+        persistCurrentLocalState()
     }
 
     func unarchiveProject(_ path: String) {
         archivedProjectPaths.remove(path)
-        defaults.set(archivedProjectPaths.sorted(), forKey: StorageKey.archivedProjects)
+        persistCurrentLocalState()
     }
 
     func refreshRuntimeInfo() async {
@@ -550,7 +685,7 @@ final class RemoteCodexStore: ObservableObject {
     private func saveProjectPath(_ path: String) {
         guard !savedProjectPaths.contains(path) else { return }
         savedProjectPaths.append(path)
-        defaults.set(savedProjectPaths, forKey: StorageKey.projects)
+        persistCurrentLocalState()
     }
 
     func toggleProjectPin(_ path: String) {
@@ -559,7 +694,43 @@ final class RemoteCodexStore: ObservableObject {
         } else {
             pinnedProjectPaths.insert(path)
         }
+        persistCurrentLocalState()
+    }
+
+    private func restoreLocalState(for serverID: UUID) {
+        let state = localStateByServerID[serverID] ?? ServerLocalState()
+        savedProjectPaths = state.savedProjectPaths
+        pinnedProjectPaths = Set(state.pinnedProjectPaths)
+        pinnedThreadIDs = Set(state.pinnedThreadIDs)
+        archivedProjectPaths = Set(state.archivedProjectPaths)
+        persistLegacyLocalStateMirror()
+    }
+
+    private func persistCurrentLocalState() {
+        localStateByServerID[activeServerID] = ServerLocalState(
+            savedProjectPaths: savedProjectPaths,
+            pinnedProjectPaths: pinnedProjectPaths.sorted(),
+            pinnedThreadIDs: pinnedThreadIDs.sorted(),
+            archivedProjectPaths: archivedProjectPaths.sorted()
+        )
+        persistLocalStates()
+        persistLegacyLocalStateMirror()
+    }
+
+    private func persistLocalStates() {
+        let encodedByID = Dictionary(uniqueKeysWithValues: localStateByServerID.map {
+            ($0.key.uuidString, $0.value)
+        })
+        if let data = try? JSONEncoder().encode(encodedByID) {
+            defaults.set(data, forKey: StorageKey.serverStates)
+        }
+    }
+
+    private func persistLegacyLocalStateMirror() {
+        defaults.set(savedProjectPaths, forKey: StorageKey.projects)
         defaults.set(pinnedProjectPaths.sorted(), forKey: StorageKey.pinnedProjects)
+        defaults.set(pinnedThreadIDs.sorted(), forKey: StorageKey.pinnedThreads)
+        defaults.set(archivedProjectPaths.sorted(), forKey: StorageKey.archivedProjects)
     }
 
     private func persistEndpoint() {
@@ -568,12 +739,52 @@ final class RemoteCodexStore: ObservableObject {
         }
     }
 
-    private static func loadEndpoint(from defaults: UserDefaults) -> ServerEndpoint {
-        guard let data = defaults.data(forKey: StorageKey.endpoint),
-              let endpoint = try? JSONDecoder().decode(ServerEndpoint.self, from: data) else {
-            return .fallback
+    private func persistServers() {
+        if let data = try? JSONEncoder().encode(servers) {
+            defaults.set(data, forKey: StorageKey.servers)
         }
-        return endpoint
+        defaults.set(activeServerID.uuidString, forKey: StorageKey.activeServerID)
+    }
+
+    private static func loadServers(from defaults: UserDefaults) -> (servers: [ServerProfile], activeServerID: UUID) {
+        if let data = defaults.data(forKey: StorageKey.servers),
+           let servers = try? JSONDecoder().decode([ServerProfile].self, from: data),
+           !servers.isEmpty {
+            let activeID = defaults.string(forKey: StorageKey.activeServerID).flatMap(UUID.init)
+                ?? servers[0].id
+            let resolvedID = servers.contains(where: { $0.id == activeID }) ? activeID : servers[0].id
+            return (servers, resolvedID)
+        }
+
+        let endpoint: ServerEndpoint
+        if let data = defaults.data(forKey: StorageKey.endpoint),
+           let savedEndpoint = try? JSONDecoder().decode(ServerEndpoint.self, from: data) {
+            endpoint = savedEndpoint
+        } else {
+            endpoint = .fallback
+        }
+        let profile = ServerProfile(name: "默认服务端", endpoint: endpoint)
+        return ([profile], profile.id)
+    }
+
+    private static func loadLocalStates(
+        from defaults: UserDefaults,
+        activeServerID: UUID
+    ) -> [UUID: ServerLocalState] {
+        if let data = defaults.data(forKey: StorageKey.serverStates),
+           let encodedByID = try? JSONDecoder().decode([String: ServerLocalState].self, from: data) {
+            let states = Dictionary(uniqueKeysWithValues: encodedByID.compactMap { key, value in
+                UUID(uuidString: key).map { ($0, value) }
+            })
+            if !states.isEmpty { return states }
+        }
+
+        return [activeServerID: ServerLocalState(
+            savedProjectPaths: defaults.stringArray(forKey: StorageKey.projects) ?? [],
+            pinnedProjectPaths: defaults.stringArray(forKey: StorageKey.pinnedProjects) ?? [],
+            pinnedThreadIDs: defaults.stringArray(forKey: StorageKey.pinnedThreads) ?? [],
+            archivedProjectPaths: defaults.stringArray(forKey: StorageKey.archivedProjects) ?? []
+        )]
     }
 
     private func report(_ error: Error) {
@@ -588,6 +799,9 @@ final class RemoteCodexStore: ObservableObject {
 
 enum StorageKey {
     static let endpoint = "codeanywhere.endpoint"
+    static let servers = "codeanywhere.servers"
+    static let activeServerID = "codeanywhere.activeServerID"
+    static let serverStates = "codeanywhere.serverStates"
     static let autoConnect = "codeanywhere.autoConnect"
     static let projects = "codeanywhere.projects"
     static let pinnedProjects = "codeanywhere.pinnedProjects"

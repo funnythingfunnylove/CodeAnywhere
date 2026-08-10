@@ -45,6 +45,13 @@ final class RemoteScheduledTaskStore: ObservableObject {
         self.session = session
     }
 
+    func reset() {
+        tasks.removeAll()
+        isLoading = false
+        lastUpdatedAt = nil
+        runtimeInfo = nil
+    }
+
     func refresh(endpoint: ServerEndpoint) async throws {
         isLoading = true
         defer { isLoading = false }

@@ -158,8 +158,13 @@ struct ChatView: View {
                     .background(Color.accentColor.gradient, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
+                .disabled(
+                    draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || isSending
+                    || currentThread.activity == .active
+                )
                 .accessibilityLabel("发送")
+                .accessibilityHint(currentThread.activity == .active ? "当前任务完成后才能继续发送" : "")
             }
         }
         .padding(10)

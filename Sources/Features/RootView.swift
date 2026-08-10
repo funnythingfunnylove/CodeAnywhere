@@ -14,7 +14,7 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if store.connectionState.isConnected {
+            if store.isMainInterfaceVisible {
                 TabView(selection: $selectedTab) {
                     NavigationStack { DashView() }
                         .tabItem { Label("Dash", systemImage: "gauge.with.dots.needle.67percent") }

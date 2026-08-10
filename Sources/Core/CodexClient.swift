@@ -9,6 +9,7 @@ enum CodexClientError: LocalizedError, Sendable {
     case invalidEndpoint
     case disconnected
     case malformedResponse
+    case threadHasActiveWriter
     case server(code: Int, message: String)
     case transport(String)
 
@@ -17,9 +18,15 @@ enum CodexClientError: LocalizedError, Sendable {
         case .invalidEndpoint: return "IP 或端口无效"
         case .disconnected: return "与 Codex 桌面端的连接已断开"
         case .malformedResponse: return "Codex 返回了无法识别的数据"
+        case .threadHasActiveWriter: return "该对话仍有任务在执行，请等待完成或先停止当前任务"
         case .server(_, let message): return message
         case .transport(let message): return message
         }
+    }
+
+    var isActiveWriterConflict: Bool {
+        guard case .server(_, let message) = self else { return false }
+        return message.localizedCaseInsensitiveContains("active writer")
     }
 }
 

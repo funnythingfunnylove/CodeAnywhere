@@ -1,6 +1,6 @@
 import Foundation
 
-struct ServerEndpoint: Codable, Equatable, Sendable {
+struct ServerEndpoint: Codable, Equatable, Hashable, Sendable {
     var host: String
     var port: Int
 
@@ -19,6 +19,29 @@ struct ServerEndpoint: Codable, Equatable, Sendable {
     var isValid: Bool {
         webSocketURL != nil && !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (1...65535).contains(port)
     }
+
+    var displayAddress: String {
+        "\(host.trimmingCharacters(in: .whitespacesAndNewlines)):\(port)"
+    }
+}
+
+struct ServerProfile: Identifiable, Codable, Equatable, Hashable, Sendable {
+    let id: UUID
+    var name: String
+    var endpoint: ServerEndpoint
+
+    init(id: UUID = UUID(), name: String, endpoint: ServerEndpoint) {
+        self.id = id
+        self.name = name
+        self.endpoint = endpoint
+    }
+
+    var displayName: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "未命名服务端" : trimmed
+    }
+
+    var displayAddress: String { endpoint.displayAddress }
 }
 
 enum ConnectionState: Equatable {
