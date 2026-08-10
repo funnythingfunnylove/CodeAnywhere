@@ -24,6 +24,7 @@ final class CompletionMonitor: ObservableObject {
     @Published private(set) var pendingCount = 0
     @Published private(set) var deliveredCount = 0
     @Published private(set) var notificationHistory: [CompletionNotificationRecord] = []
+    @Published private(set) var threadSnapshots: [MonitoredThreadSnapshot] = []
 
     private let persistence: any CompletionStatePersisting
     private let deviceKeyStore: any DeviceKeyStoring
@@ -106,6 +107,39 @@ final class CompletionMonitor: ObservableObject {
     func clearNotificationHistory() {
         CompletionDetector.clearNotificationHistory(state: &monitorState)
         persistState()
+    }
+
+    func executeScheduledTask(_ task: ScheduledTask) async throws -> String {
+        guard let port = currentPort else { throw MacCodexClientError.disconnected }
+        let client = try await connectedClient(port: port)
+        var startParams: [String: MacJSONValue] = [
+            "cwd": .string(task.cwd),
+            "sandbox": .string("danger-full-access"),
+            "approvalPolicy": .string("never"),
+            "threadSource": .string("codeanywhere-scheduled-task")
+        ]
+        if let modelID = task.modelID, !modelID.isEmpty {
+            startParams["model"] = .string(modelID)
+        }
+        let startResult = try await client.call(method: "thread/start", params: startParams)
+        guard let threadID = startResult["thread"]?["id"]?.stringValue, !threadID.isEmpty else {
+            throw MacCodexClientError.malformedResponse
+        }
+        var turnParams: [String: MacJSONValue] = [
+            "threadId": .string(threadID),
+            "input": .array([.object(["type": .string("text"), "text": .string(task.prompt)])]),
+            "approvalPolicy": .string("never"),
+            "sandboxPolicy": .object(["type": .string("dangerFullAccess")])
+        ]
+        if let modelID = task.modelID, !modelID.isEmpty {
+            turnParams["model"] = .string(modelID)
+        }
+        if let effort = task.reasoningEffort, !effort.isEmpty {
+            turnParams["effort"] = .string(effort)
+        }
+        _ = try await client.call(method: "turn/start", params: turnParams)
+        pollNow()
+        return threadID
     }
 
     private func runLoop() async {
@@ -213,6 +247,15 @@ final class CompletionMonitor: ObservableObject {
             guard let thread = result["thread"],
                   let detailedSnapshot = MonitoredThreadSnapshot(json: thread) else { continue }
             detailedSnapshots.append(detailedSnapshot)
+        }
+        var dashboardSnapshots = listedSnapshotsByID
+        for snapshot in detailedSnapshots {
+            dashboardSnapshots[snapshot.id] = snapshot
+        }
+        threadSnapshots = dashboardSnapshots.values.sorted { lhs, rhs in
+            if lhs.state == .active, rhs.state != .active { return true }
+            if lhs.state != .active, rhs.state == .active { return false }
+            return lhs.updatedAt > rhs.updatedAt
         }
         return detailedSnapshots
     }

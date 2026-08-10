@@ -10,8 +10,12 @@ final class RemoteCodexStore: ObservableObject {
     @Published private(set) var streamingItems: [String: [StreamingChatItem]] = [:]
     @Published private(set) var savedProjectPaths: [String] = []
     @Published private(set) var pinnedProjectPaths: Set<String> = []
+    @Published private(set) var pinnedThreadIDs: Set<String> = []
+    @Published private(set) var archivedProjectPaths: Set<String> = []
     @Published var requestedThreadID: String?
     @Published var errorMessage: String?
+
+    let scheduledTasks: RemoteScheduledTaskStore
 
     private var client: (any CodexClientProtocol)?
     private let defaults: UserDefaults
@@ -21,14 +25,21 @@ final class RemoteCodexStore: ObservableObject {
     private var notificationTask: Task<Void, Never>?
     private let remoteFileCache = NSCache<NSString, NSData>()
 
-    init(client: (any CodexClientProtocol)? = nil, defaults: UserDefaults = .standard) {
+    init(
+        client: (any CodexClientProtocol)? = nil,
+        defaults: UserDefaults = .standard,
+        scheduledTasks: RemoteScheduledTaskStore? = nil
+    ) {
         self.defaults = defaults
+        self.scheduledTasks = scheduledTasks ?? RemoteScheduledTaskStore()
         LegacyIOSReminderState.clear(defaults: defaults)
         endpoint = Self.loadEndpoint(from: defaults)
         self.client = client
         remoteFileCache.totalCostLimit = 64 * 1_024 * 1_024
         savedProjectPaths = defaults.stringArray(forKey: StorageKey.projects) ?? []
         pinnedProjectPaths = Set(defaults.stringArray(forKey: StorageKey.pinnedProjects) ?? [])
+        pinnedThreadIDs = Set(defaults.stringArray(forKey: StorageKey.pinnedThreads) ?? [])
+        archivedProjectPaths = Set(defaults.stringArray(forKey: StorageKey.archivedProjects) ?? [])
         requestedThreadID = defaults.string(forKey: StorageKey.pendingThreadID)
     }
 
@@ -36,7 +47,7 @@ final class RemoteCodexStore: ObservableObject {
         notificationTask?.cancel()
     }
 
-    var projects: [ProjectSummary] {
+    var allProjects: [ProjectSummary] {
         let allPaths = Set(savedProjectPaths).union(threads.map(\.cwd))
         return allPaths.map { path in
             let matching = threads.filter { $0.cwd == path }
@@ -45,7 +56,8 @@ final class RemoteCodexStore: ObservableObject {
                 name: URL(fileURLWithPath: path).lastPathComponent.isEmpty ? path : URL(fileURLWithPath: path).lastPathComponent,
                 threadCount: matching.count,
                 updatedAt: matching.map(\.updatedAt).max(),
-                isPinned: pinnedProjectPaths.contains(path)
+                isPinned: pinnedProjectPaths.contains(path),
+                isArchived: archivedProjectPaths.contains(path)
             )
         }
         .sorted {
@@ -56,6 +68,10 @@ final class RemoteCodexStore: ObservableObject {
             return $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
     }
+
+    var projects: [ProjectSummary] { allProjects.filter { !$0.isArchived } }
+
+    var archivedProjects: [ProjectSummary] { allProjects.filter(\.isArchived) }
 
     func connectIfConfigured() async {
         guard ConnectionPreferences.shouldAutoConnect(defaults: defaults),
@@ -138,7 +154,11 @@ final class RemoteCodexStore: ObservableObject {
                     ]
                     if let cursor { params["cursor"] = .string(cursor) }
                     let result = try await client.call(method: "thread/list", params: params)
-                    for thread in (result["data"]?.arrayValue ?? []).compactMap(CodexThread.init(json:)) {
+                    for value in result["data"]?.arrayValue ?? [] {
+                        guard var thread = CodexThread(json: value) else { continue }
+                        thread.isArchived = archived
+                        thread.isPinned = pinnedThreadIDs.contains(thread.id) || thread.isPinned
+                        if thread.isPinned { pinnedThreadIDs.insert(thread.id) }
                         collectedByID[thread.id] = thread
                     }
                     cursor = result["nextCursor"]?.stringValue
@@ -146,6 +166,7 @@ final class RemoteCodexStore: ObservableObject {
             }
             guard generation == threadRefreshGeneration else { return }
             threads = collectedByID.values.sorted { $0.updatedAt > $1.updatedAt }
+            defaults.set(pinnedThreadIDs.sorted(), forKey: StorageKey.pinnedThreads)
         } catch {
             guard generation == threadRefreshGeneration else { return }
             report(error)
@@ -182,7 +203,13 @@ final class RemoteCodexStore: ObservableObject {
     }
 
     @discardableResult
-    func createConversation(path: String, prompt: String, modelID: String?, effort: String?) async throws -> String {
+    func createConversation(
+        path: String,
+        prompt: String,
+        modelID: String?,
+        effort: String?,
+        waitForFirstTurn: Bool = true
+    ) async throws -> String {
         guard let client else { throw CodexClientError.disconnected }
         var startParams: [String: JSONValue] = [
             "cwd": .string(path),
@@ -198,8 +225,65 @@ final class RemoteCodexStore: ObservableObject {
         saveProjectPath(path)
         threads.insert(thread, at: 0)
         activeThreadIDs.insert(thread.id)
-        try await send(prompt: prompt, threadID: thread.id, modelID: modelID, effort: effort)
+        if waitForFirstTurn {
+            try await send(prompt: prompt, threadID: thread.id, modelID: modelID, effort: effort)
+        } else {
+            startFirstTurnInBackground(
+                prompt: prompt,
+                threadID: thread.id,
+                modelID: modelID,
+                effort: effort
+            )
+        }
         return thread.id
+    }
+
+    private func startFirstTurnInBackground(
+        prompt: String,
+        threadID: String,
+        modelID: String?,
+        effort: String?
+    ) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.send(
+                    prompt: prompt,
+                    threadID: threadID,
+                    modelID: modelID,
+                    effort: effort
+                )
+            } catch {
+                if await self.reconcileTimedOutFirstTurn(error, threadID: threadID) {
+                    return
+                }
+                self.errorMessage = "会话已创建，但首条消息发送失败：\(error.localizedDescription)。可在会话中重新发送。"
+            }
+        }
+    }
+
+    private func reconcileTimedOutFirstTurn(_ error: Error, threadID: String) async -> Bool {
+        guard case CodexClientError.transport(let message) = error,
+              message == "Codex 请求超时",
+              let client else { return false }
+        do {
+            let result = try await client.call(
+                method: "thread/read",
+                params: ["threadId": .string(threadID), "includeTurns": .bool(true)]
+            )
+            guard let json = result["thread"],
+                  let detail = ThreadDetail(json: json),
+                  detail.latestTurnID != nil || detail.thread.activity == .active else {
+                return false
+            }
+            threadDetails[threadID] = detail
+            if let index = threads.firstIndex(where: { $0.id == threadID }) {
+                threads[index] = detail.thread
+            }
+            return true
+        } catch {
+            return false
+        }
     }
 
     func send(prompt: String, threadID: String, modelID: String?, effort: String?) async throws {
@@ -237,6 +321,60 @@ final class RemoteCodexStore: ObservableObject {
             ])
         } catch {
             report(error)
+        }
+    }
+
+    func toggleThreadPin(_ threadID: String) {
+        if pinnedThreadIDs.contains(threadID) {
+            pinnedThreadIDs.remove(threadID)
+        } else {
+            pinnedThreadIDs.insert(threadID)
+        }
+        defaults.set(pinnedThreadIDs.sorted(), forKey: StorageKey.pinnedThreads)
+        if let index = threads.firstIndex(where: { $0.id == threadID }) {
+            threads[index].isPinned = pinnedThreadIDs.contains(threadID)
+        }
+    }
+
+    func archiveThread(_ threadID: String) async {
+        guard let client else { return }
+        do {
+            _ = try await client.call(method: "thread/archive", params: [
+                "threadId": .string(threadID)
+            ])
+            await refreshThreads()
+        } catch {
+            report(error)
+        }
+    }
+
+    func unarchiveThread(_ threadID: String) async {
+        guard let client else { return }
+        do {
+            _ = try await client.call(method: "thread/unarchive", params: [
+                "threadId": .string(threadID)
+            ])
+            await refreshThreads()
+        } catch {
+            report(error)
+        }
+    }
+
+    func archiveProject(_ path: String) {
+        archivedProjectPaths.insert(path)
+        defaults.set(archivedProjectPaths.sorted(), forKey: StorageKey.archivedProjects)
+    }
+
+    func unarchiveProject(_ path: String) {
+        archivedProjectPaths.remove(path)
+        defaults.set(archivedProjectPaths.sorted(), forKey: StorageKey.archivedProjects)
+    }
+
+    func refreshRuntimeInfo() async {
+        do {
+            try await scheduledTasks.refreshRuntimeInfo(endpoint: endpoint)
+        } catch {
+            // Dash remains useful when an older Mac build has no info endpoint.
         }
     }
 
@@ -453,6 +591,8 @@ enum StorageKey {
     static let autoConnect = "codeanywhere.autoConnect"
     static let projects = "codeanywhere.projects"
     static let pinnedProjects = "codeanywhere.pinnedProjects"
+    static let pinnedThreads = "codeanywhere.pinnedThreads"
+    static let archivedProjects = "codeanywhere.archivedProjects"
     static let pendingThreadID = "codeanywhere.pendingThreadID"
     static let appearance = "codeanywhere.appearance"
     static let defaultModel = "codeanywhere.defaultModel"

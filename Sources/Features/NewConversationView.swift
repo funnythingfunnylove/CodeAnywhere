@@ -301,9 +301,9 @@ struct NewConversationView: View {
                     path: path.trimmingCharacters(in: .whitespacesAndNewlines),
                     prompt: prompt,
                     modelID: selectedModelID,
-                    effort: selectedEffort.isEmpty ? nil : selectedEffort
+                    effort: selectedEffort.isEmpty ? nil : selectedEffort,
+                    waitForFirstTurn: false
                 )
-                await store.refreshThreads()
                 if let thread = store.threads.first(where: { $0.id == id }) {
                     dismiss()
                     onCreated?(thread)

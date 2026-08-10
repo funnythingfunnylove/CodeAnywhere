@@ -266,6 +266,57 @@ final class ModelsTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testNewConversationCanOpenAfterThreadCreationWhenFirstTurnFails() async throws {
+        let client = FailingFirstTurnCodexClient()
+        let suiteName = "CodeAnywhereTests.NonblockingCreation.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = RemoteCodexStore(client: client, defaults: defaults)
+
+        let threadID = try await store.createConversation(
+            path: "/tmp/project",
+            prompt: "开始任务",
+            modelID: "gpt-5",
+            effort: "high",
+            waitForFirstTurn: false
+        )
+
+        XCTAssertEqual(threadID, "new-thread")
+        XCTAssertEqual(store.threads.map(\.id), ["new-thread"])
+
+        for _ in 0..<20 where store.errorMessage == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(
+            store.errorMessage,
+            "会话已创建，但首条消息发送失败：首条消息失败。可在会话中重新发送。"
+        )
+    }
+
+    @MainActor
+    func testTimedOutFirstTurnIsReconciledWhenServerAlreadyAcceptedIt() async throws {
+        let client = AcceptedTimedOutFirstTurnCodexClient()
+        let suiteName = "CodeAnywhereTests.ReconciledCreation.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = RemoteCodexStore(client: client, defaults: defaults)
+
+        let threadID = try await store.createConversation(
+            path: "/tmp/project",
+            prompt: "开始任务",
+            modelID: "gpt-5",
+            effort: "high",
+            waitForFirstTurn: false
+        )
+
+        for _ in 0..<20 where store.threadDetails[threadID] == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(store.threadDetails[threadID]?.latestTurnID, "accepted-turn")
+        XCTAssertNil(store.errorMessage)
+    }
+
     func testSandboxApprovalServerRequestsAreAutomaticallyAccepted() throws {
         for method in [
             "item/commandExecution/requestApproval",
@@ -804,6 +855,76 @@ private actor RecordingCodexClient: CodexClientProtocol {
         "status": .object(["type": .string("idle")]),
         "turns": .array([])
     ])
+}
+
+private actor FailingFirstTurnCodexClient: CodexClientProtocol {
+    nonisolated let notifications: AsyncStream<RPCNotification> = AsyncStream { continuation in
+        continuation.finish()
+    }
+
+    func connect() async throws -> String { "Test Codex" }
+
+    func disconnect() async {}
+
+    func call(method: String, params: [String: JSONValue]) async throws -> JSONValue {
+        switch method {
+        case "thread/start":
+            return .object(["thread": .object([
+                "id": .string("new-thread"),
+                "cwd": .string("/tmp/project"),
+                "preview": .string(""),
+                "createdAt": .number(1_700_000_000),
+                "updatedAt": .number(1_700_000_000),
+                "status": .object(["type": .string("idle")]),
+                "turns": .array([])
+            ])])
+        case "turn/start":
+            throw CodexClientError.transport("首条消息失败")
+        default:
+            throw CodexClientError.server(code: -1, message: "Unexpected method: \(method)")
+        }
+    }
+}
+
+private actor AcceptedTimedOutFirstTurnCodexClient: CodexClientProtocol {
+    nonisolated let notifications: AsyncStream<RPCNotification> = AsyncStream { continuation in
+        continuation.finish()
+    }
+
+    func connect() async throws -> String { "Test Codex" }
+
+    func disconnect() async {}
+
+    func call(method: String, params: [String: JSONValue]) async throws -> JSONValue {
+        switch method {
+        case "thread/start":
+            return .object(["thread": threadJSON(turns: [])])
+        case "turn/start":
+            throw CodexClientError.transport("Codex 请求超时")
+        case "thread/read":
+            return .object(["thread": threadJSON(turns: [
+                .object([
+                    "id": .string("accepted-turn"),
+                    "status": .string("inProgress"),
+                    "items": .array([])
+                ])
+            ])])
+        default:
+            throw CodexClientError.server(code: -1, message: "Unexpected method: \(method)")
+        }
+    }
+
+    private func threadJSON(turns: [JSONValue]) -> JSONValue {
+        .object([
+            "id": .string("accepted-thread"),
+            "cwd": .string("/tmp/project"),
+            "preview": .string(""),
+            "createdAt": .number(1_700_000_000),
+            "updatedAt": .number(1_700_000_000),
+            "status": .object(["type": .string("active")]),
+            "turns": .array(turns)
+        ])
+    }
 }
 
 private actor ServerResponseTextSink {

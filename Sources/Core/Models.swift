@@ -185,6 +185,7 @@ struct CodexThread: Identifiable, Hashable, Sendable {
     var updatedAt: Date
     var activity: ThreadActivity
     var isPinned: Bool
+    var isArchived: Bool
 
     var title: String {
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -207,6 +208,7 @@ struct CodexThread: Identifiable, Hashable, Sendable {
         createdAt = Self.date(from: json["createdAt"]?.intValue)
         updatedAt = Self.date(from: json["updatedAt"]?.intValue)
         isPinned = json["isPinned"]?.boolValue ?? false
+        isArchived = json["archived"]?.boolValue ?? false
         let status = json["status"]?["type"]?.stringValue ?? json["status"]?.stringValue ?? "unknown"
         activity = ThreadActivity(rawValue: status) ?? .unknown
     }
@@ -634,4 +636,21 @@ struct ProjectSummary: Identifiable, Hashable, Sendable {
     let threadCount: Int
     let updatedAt: Date?
     let isPinned: Bool
+    let isArchived: Bool
+
+    init(
+        path: String,
+        name: String,
+        threadCount: Int,
+        updatedAt: Date?,
+        isPinned: Bool,
+        isArchived: Bool = false
+    ) {
+        self.path = path
+        self.name = name
+        self.threadCount = threadCount
+        self.updatedAt = updatedAt
+        self.isPinned = isPinned
+        self.isArchived = isArchived
+    }
 }

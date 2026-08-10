@@ -93,13 +93,20 @@ actor CodexWebSocketClient: CodexClientProtocol {
                 "clientInfo": .object([
                     "name": .string("codeanywhere-ios"),
                     "title": .string("CodeAnywhere"),
-                    "version": .string("0.1.1")
+                    "version": .string(Self.clientVersion)
                 ]),
                 "capabilities": .object(["experimentalApi": .bool(false)])
             ]
         )
         try await sendNotification(method: "initialized")
         return result["userAgent"]?.stringValue ?? "Codex"
+    }
+
+    private static var clientVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        if let version, let build { return "\(version) (\(build))" }
+        return version ?? "unknown"
     }
 
     func disconnect() {

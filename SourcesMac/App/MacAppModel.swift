@@ -64,6 +64,8 @@ final class MacAppModel: ObservableObject {
     let server: ServerProcessController
     let monitor: CompletionMonitor
     let codex: CodexInstallationController
+    let scheduledTasks: ScheduledTaskCatalog
+    let taskService: ScheduledTaskService
 
     var versionDisplay: String { MacAppVersion.display }
     var localServerEndpoint: String? {
@@ -88,6 +90,7 @@ final class MacAppModel: ObservableObject {
     private let deviceKeyStore: any DeviceKeyStoring
     private let barkSender: any BarkSending
     private var didHandleInitialLaunch = false
+    private var scheduledTaskLoop: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
 
     init(
@@ -101,9 +104,16 @@ final class MacAppModel: ObservableObject {
         self.defaults = defaults
         let resolvedServer = server ?? ServerProcessController()
         let resolvedMonitor = monitor ?? CompletionMonitor()
+        let resolvedScheduledTasks = ScheduledTaskCatalog(
+            defaults: defaults,
+            storageKey: "mac.scheduledTasks"
+        )
         self.server = resolvedServer
         self.monitor = resolvedMonitor
         self.codex = codex ?? CodexInstallationController()
+        scheduledTasks = resolvedScheduledTasks
+        taskService = ScheduledTaskService(catalog: resolvedScheduledTasks)
+        taskService.codexVersion = self.codex.version
         self.deviceKeyStore = deviceKeyStore
         self.barkSender = barkSender
         let savedPort = defaults.integer(forKey: Keys.port)
@@ -137,6 +147,16 @@ final class MacAppModel: ObservableObject {
             .sink { [weak self] in self?.objectWillChange.send() }
             .store(in: &cancellables)
         self.codex.objectWillChange
+            .sink { [weak self] in
+                guard let self else { return }
+                self.taskService.codexVersion = self.codex.version
+                self.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+        resolvedScheduledTasks.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        taskService.objectWillChange
             .sink { [weak self] in self?.objectWillChange.send() }
             .store(in: &cancellables)
     }
@@ -145,15 +165,28 @@ final class MacAppModel: ObservableObject {
         guard !didHandleInitialLaunch else { return }
         didHandleInitialLaunch = true
         Task { await codex.refresh() }
+        startScheduledTaskLoop()
         if startsAutomatically { startServer() }
     }
 
     func startServer() {
         guard canStartServer else { return }
+        guard configuredPort < 65_535 else {
+            barkStatus = .failure("监听端口需小于 65535，以便任务服务使用相邻端口")
+            return
+        }
         do {
             try server.start(port: configuredPort)
+            do {
+                taskService.appServerPort = configuredPort
+                try taskService.start(port: configuredPort + 1)
+            } catch {
+                _ = server.stop(waitUntilExit: true)
+                throw error
+            }
             monitor.barkServerURL = BarkServerConfiguration.resolvedURL(from: barkServerURL)
             monitor.start(port: configuredPort)
+            Task { await runDueScheduledTasks() }
         } catch {
             barkStatus = .failure(ProcessLogRedactor.redact(error.localizedDescription))
         }
@@ -165,13 +198,45 @@ final class MacAppModel: ObservableObject {
     }
 
     func stopServer() {
+        taskService.stop()
         monitor.stop()
         server.stop()
     }
 
     func shutdownForQuit() -> Bool {
+        scheduledTaskLoop?.cancel()
+        scheduledTaskLoop = nil
+        taskService.stop()
         monitor.stop()
         return server.stop(waitUntilExit: true)
+    }
+
+    func runDueScheduledTasks() async {
+        guard server.state.isRunning else { return }
+        for task in scheduledTasks.claimDueTasks() {
+            do {
+                let threadID = try await monitor.executeScheduledTask(task)
+                scheduledTasks.recordSuccess(
+                    id: task.id,
+                    message: "已创建对话 \(String(threadID.prefix(8)))"
+                )
+            } catch {
+                scheduledTasks.recordFailure(
+                    id: task.id,
+                    message: ProcessLogRedactor.redact(error.localizedDescription)
+                )
+            }
+        }
+    }
+
+    private func startScheduledTaskLoop() {
+        guard scheduledTaskLoop == nil else { return }
+        scheduledTaskLoop = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.runDueScheduledTasks()
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
     }
 
     func saveDeviceKey(_ key: String) {

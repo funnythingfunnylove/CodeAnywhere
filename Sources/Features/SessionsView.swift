@@ -1,17 +1,26 @@
 import SwiftUI
+import UIKit
 
 struct SessionsView: View {
     @EnvironmentObject private var store: RemoteCodexStore
     @State private var searchText = ""
     @State private var showingNewConversation = false
-    @State private var createdThread: CodexThread?
+    @State private var selectedThread: CodexThread?
 
-    private var filteredThreads: [CodexThread] {
-        guard !searchText.isEmpty else { return store.threads }
-        return store.threads.filter {
-            $0.title.localizedCaseInsensitiveContains(searchText) ||
-            $0.cwd.localizedCaseInsensitiveContains(searchText)
-        }
+    private var activeThreads: [CodexThread] {
+        store.threads.filter { !$0.isArchived && matches($0) }
+    }
+
+    private var pinnedThreads: [CodexThread] {
+        activeThreads.filter(\.isPinned)
+    }
+
+    private var allThreads: [CodexThread] {
+        activeThreads.filter { !$0.isPinned }
+    }
+
+    private var archivedThreads: [CodexThread] {
+        store.threads.filter { $0.isArchived && matches($0) }
     }
 
     var body: some View {
@@ -21,23 +30,39 @@ struct SessionsView: View {
                 StableSearchField(text: $searchText)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 6)
+
                 if store.threads.isEmpty {
                     EmptyStateView(icon: "bubble.left.and.exclamationmark.bubble.right", title: "还没有对话", message: "从右上角新建一段 Codex 对话")
-                } else if filteredThreads.isEmpty {
+                } else if pinnedThreads.isEmpty && allThreads.isEmpty && archivedThreads.isEmpty {
                     EmptyStateView(icon: "magnifyingglass", title: "没有匹配的对话", message: "换个关键词搜索对话标题或项目")
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: DS.spacingSM) {
-                            ForEach(filteredThreads) { thread in
-                                NavigationLink(value: thread) {
-                                    SessionRow(thread: thread)
-                                }
-                                .buttonStyle(.plain)
+                    List {
+                        if !pinnedThreads.isEmpty {
+                            Section {
+                                ForEach(pinnedThreads) { sessionRow($0) }
+                            } header: {
+                                SessionSectionHeader(title: "已置顶", systemImage: "pin.fill")
                             }
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
+                        if !allThreads.isEmpty {
+                            Section {
+                                ForEach(allThreads) { sessionRow($0) }
+                            } header: {
+                                SessionSectionHeader(title: "所有对话", systemImage: "bubble.left.and.bubble.right")
+                            }
+                        }
+                        if !archivedThreads.isEmpty {
+                            Section {
+                                ForEach(archivedThreads) { sessionRow($0) }
+                            } header: {
+                                SessionSectionHeader(title: "已归档", systemImage: "archivebox")
+                            }
+                        }
                     }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .listRowSeparator(.hidden)
+                    .listSectionSpacing(12)
                     .refreshable { await store.refreshThreads() }
                 }
             }
@@ -52,15 +77,12 @@ struct SessionsView: View {
                 .accessibilityHint("选择项目、模型与思考级别")
             }
         }
-        .navigationDestination(for: CodexThread.self) { thread in
-            ChatView(thread: thread)
-        }
-        .navigationDestination(item: $createdThread) { thread in
+        .navigationDestination(item: $selectedThread) { thread in
             ChatView(thread: thread)
         }
         .sheet(isPresented: $showingNewConversation) {
             NewConversationView { thread in
-                createdThread = thread
+                selectedThread = thread
             }
         }
         .onAppear { openRequestedThreadIfAvailable() }
@@ -68,15 +90,52 @@ struct SessionsView: View {
         .onChange(of: store.threads.map(\.id)) { _, _ in openRequestedThreadIfAvailable() }
     }
 
+    @ViewBuilder
+    private func sessionRow(_ thread: CodexThread) -> some View {
+        SessionRow(
+            thread: thread,
+            onOpen: { selectedThread = thread },
+            onPin: { store.toggleThreadPin(thread.id) },
+            onArchive: {
+                Task {
+                    if thread.isArchived {
+                        await store.unarchiveThread(thread.id)
+                    } else {
+                        await store.archiveThread(thread.id)
+                    }
+                }
+            }
+        )
+    }
+
+    private func matches(_ thread: CodexThread) -> Bool {
+        guard !searchText.isEmpty else { return true }
+        return thread.title.localizedCaseInsensitiveContains(searchText)
+            || thread.cwd.localizedCaseInsensitiveContains(searchText)
+    }
+
     private func openRequestedThreadIfAvailable() {
         guard let threadID = store.requestedThreadID,
               let thread = store.threads.first(where: { $0.id == threadID }) else { return }
-        createdThread = thread
+        selectedThread = thread
         store.consumeRequestedThread()
     }
 }
 
-private struct StableSearchField: View {
+private struct SessionSectionHeader: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.headline)
+            .textCase(nil)
+            .padding(.horizontal, 2)
+            .padding(.vertical, 2)
+    }
+}
+
+struct StableSearchField: View {
     @Binding var text: String
 
     var body: some View {
@@ -108,42 +167,90 @@ private struct StableSearchField: View {
 
 private struct SessionRow: View {
     let thread: CodexThread
+    let onOpen: () -> Void
+    let onPin: () -> Void
+    let onArchive: () -> Void
+    @State private var showingArchiveConfirmation = false
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: thread.activity == .active ? "sparkles" : "bubble.left.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(thread.activity == .active ? .orange : Color.accentColor)
-                .frame(width: 32, height: 32)
-                .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(thread.title)
+        Button {
+            KeyboardDismiss.dismiss()
+            onOpen()
+        } label: {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: thread.activity == .active ? "sparkles" : "bubble.left.fill")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                HStack(spacing: 6) {
-                    Label(thread.projectName, systemImage: "folder")
-                        .lineLimit(1)
-                    Text("·")
-                    Text(thread.updatedAt, format: .relative(presentation: .named))
-                        .lineLimit(1)
+                    .foregroundStyle(thread.activity == .active ? .orange : Color.accentColor)
+                    .frame(width: 32, height: 32)
+                    .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(thread.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    HStack(spacing: 6) {
+                        Label(thread.projectName, systemImage: "folder")
+                            .lineLimit(1)
+                        Text("·")
+                        Text(thread.updatedAt, format: .relative(presentation: .named))
+                            .lineLimit(1)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 4)
-            VStack(alignment: .trailing, spacing: 5) {
+                Spacer(minLength: 4)
                 StatusPill(activity: thread.activity, compact: true)
-                Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentCard(radius: 12)
+        .accessibilityElement(children: .contain)
+        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden, edges: .all)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button {
+                KeyboardDismiss.dismiss()
+                onPin()
+            } label: {
+                Label(thread.isPinned ? "取消固定" : "固定", systemImage: thread.isPinned ? "pin.slash" : "pin")
+            }
+            .tint(.accentColor)
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            if thread.isArchived {
+                Button {
+                    KeyboardDismiss.dismiss()
+                    onArchive()
+                } label: {
+                    Label("取消归档", systemImage: "arrow.uturn.backward")
+                }
+                .tint(.orange)
+            } else {
+                Button(role: .destructive) {
+                    KeyboardDismiss.dismiss()
+                    showingArchiveConfirmation = true
+                } label: {
+                    Label("归档", systemImage: "archivebox")
+                }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .contentCard(radius: 12)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(thread.title)，\(thread.projectName)，\(thread.activity.title)")
+        .alert("归档对话？", isPresented: $showingArchiveConfirmation) {
+            Button("归档", role: .destructive, action: onArchive)
+            Button("取消", role: .cancel) { }
+        } message: {
+            Text("“\(thread.title)”将从所有对话中移到已归档。")
+        }
+    }
+}
+
+enum KeyboardDismiss {
+    static func dismiss() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }

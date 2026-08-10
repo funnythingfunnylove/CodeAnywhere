@@ -1,6 +1,8 @@
 import SwiftUI
 
 private enum MacDashboardSection: String, CaseIterable, Identifiable {
+    case dash
+    case task
     case codex
     case notify
     case logs
@@ -10,6 +12,8 @@ private enum MacDashboardSection: String, CaseIterable, Identifiable {
 
     private var metadata: (title: String, subtitle: String, systemImage: String) {
         switch self {
+        case .dash: return ("Dash", "全局对话进度", "gauge.with.dots.needle.67percent")
+        case .task: return ("Task", "定时与 Cron", "calendar.badge.clock")
         case .codex: return ("Codex", "服务与版本", "terminal")
         case .notify: return ("Notify", "Bark 完成提醒", "bell.badge")
         case .logs: return ("Logs", "运行记录", "text.alignleft")
@@ -24,7 +28,7 @@ private enum MacDashboardSection: String, CaseIterable, Identifiable {
 
 struct MacDashboardView: View {
     @ObservedObject var model: MacAppModel
-    @State private var selection: MacDashboardSection = .codex
+    @State private var selection: MacDashboardSection = .dash
     @State private var newDeviceKey = ""
 
     var body: some View {
@@ -54,6 +58,10 @@ struct MacDashboardView: View {
         } detail: {
             Group {
                 switch selection {
+                case .dash:
+                    MacProgressDashboardPage(model: model)
+                case .task:
+                    MacTaskDashboardPage(model: model)
                 case .codex:
                     CodexDashboardPage(model: model)
                 case .notify:
@@ -89,6 +97,403 @@ private struct SidebarStatus: View {
         .padding(.horizontal, 14)
         .padding(.bottom, 12)
         .background(.ultraThinMaterial)
+    }
+}
+
+private struct MacProgressDashboardPage: View {
+    @ObservedObject var model: MacAppModel
+
+    private var snapshots: [MonitoredThreadSnapshot] { model.monitor.threadSnapshots }
+    private var activeCount: Int { snapshots.filter { $0.state == .active }.count }
+    private var completedCount: Int { snapshots.filter { $0.state == .completed }.count }
+    private var failedCount: Int { snapshots.filter { $0.state == .failed }.count }
+
+    var body: some View {
+        DashboardPage(
+            title: "Dash",
+            subtitle: "全局查看所有 Codex 对话的运行、完成与异常状态。"
+        ) {
+            HStack(spacing: 12) {
+                MacMetricCard(title: "运行中", value: activeCount, systemImage: "sparkles", color: .orange)
+                MacMetricCard(title: "已完成", value: completedCount, systemImage: "checkmark.circle.fill", color: .green)
+                MacMetricCard(title: "异常", value: failedCount, systemImage: "exclamationmark.triangle.fill", color: .red)
+                MacMetricCard(title: "全部", value: snapshots.count, systemImage: "bubble.left.and.bubble.right", color: .accentColor)
+            }
+
+            DashboardCard(title: "对话进度", systemImage: "list.bullet.rectangle") {
+                HStack {
+                    Text(model.monitor.lastSuccessfulPoll.map {
+                        "最近刷新 \($0.formatted(date: .omitted, time: .standard))"
+                    } ?? "尚未完成第一次刷新")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        model.monitor.pollNow()
+                    } label: {
+                        Label("刷新", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(!model.server.state.isRunning)
+                }
+
+                if snapshots.isEmpty {
+                    ContentUnavailableView(
+                        "暂无对话进度",
+                        systemImage: "gauge.with.dots.needle.67percent",
+                        description: Text("启动 app-server 后，Dash 会自动汇总对话状态。")
+                    )
+                    .frame(minHeight: 180)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(snapshots, id: \.id) { snapshot in
+                            MacThreadProgressRow(snapshot: snapshot)
+                            if snapshot.id != snapshots.last?.id { Divider() }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct MacMetricCard: View {
+    let title: String
+    let value: Int
+    let systemImage: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .foregroundStyle(color)
+                .frame(width: 34, height: 34)
+                .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value, format: .number)
+                    .font(.title2.bold().monospacedDigit())
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct MacThreadProgressRow: View {
+    let snapshot: MonitoredThreadSnapshot
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(snapshot.state.color.opacity(0.12))
+                    .frame(width: 34, height: 34)
+                if snapshot.state == .active {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: snapshot.state.systemImage)
+                        .foregroundStyle(snapshot.state.color)
+                }
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(snapshot.title)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(2)
+                HStack(spacing: 8) {
+                    Text(snapshot.state.title)
+                        .foregroundStyle(snapshot.state.color)
+                    if let turnID = snapshot.turnID {
+                        Text("Turn \(String(turnID.prefix(8)))")
+                    }
+                }
+                .font(.caption)
+            }
+            Spacer()
+            Text(snapshot.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 10)
+    }
+}
+
+private struct MacTaskDashboardPage: View {
+    @ObservedObject var model: MacAppModel
+    @State private var showingNewTask = false
+    @State private var editingTask: ScheduledTask?
+
+    var body: some View {
+        DashboardPage(
+            title: "Task",
+            subtitle: "所有计划均保存在这台 Mac，并由 Mac 常驻触发。"
+        ) {
+            DashboardCard(title: "任务服务", systemImage: "network") {
+                HStack {
+                    StatusGlyph(isActive: model.taskService.isRunning)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(model.taskService.isRunning ? "iOS 管理接口已就绪" : "任务服务未运行")
+                            .font(.headline)
+                        Text(model.taskService.port.map { "HTTP · 端口 \($0) · Bearer 认证" } ?? "随 app-server 一起启动")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        Task { await model.runDueScheduledTasks() }
+                    } label: {
+                        Label("检查到期任务", systemImage: "play.circle")
+                    }
+                    .disabled(!model.server.state.isRunning)
+                    Button {
+                        showingNewTask = true
+                    } label: {
+                        Label("添加任务", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                Text("iPhone 只通过局域网接口增删查改；实际调度、cron 计算与对话启动全部由 Mac 完成。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            DashboardCard(title: "计划列表", systemImage: "calendar.badge.clock") {
+                if model.scheduledTasks.tasks.isEmpty {
+                    ContentUnavailableView(
+                        "暂无定时任务",
+                        systemImage: "calendar.badge.plus",
+                        description: Text("添加单次、固定间隔或五段 cron 计划。")
+                    )
+                    .frame(minHeight: 160)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(model.scheduledTasks.tasks) { task in
+                            MacScheduledTaskRow(
+                                task: task,
+                                onEnabledChange: { model.scheduledTasks.setEnabled($0, id: task.id) },
+                                onDelete: { model.scheduledTasks.delete(id: task.id) },
+                                onEdit: { editingTask = task }
+                            )
+                            if task.id != model.scheduledTasks.tasks.last?.id { Divider() }
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingNewTask) {
+            MacScheduledTaskEditorView(catalog: model.scheduledTasks)
+        }
+        .sheet(item: $editingTask) { task in
+            MacScheduledTaskEditorView(catalog: model.scheduledTasks, task: task)
+        }
+    }
+}
+
+private struct MacScheduledTaskRow: View {
+    let task: ScheduledTask
+    let onEnabledChange: (Bool) -> Void
+    let onDelete: () -> Void
+    let onEdit: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: task.schedule.kind == .cron ? "calendar.badge.clock" : "clock.arrow.circlepath")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 36, height: 36)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(task.title)
+                    .font(.callout.weight(.semibold))
+                Text(task.cwd)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                HStack(spacing: 10) {
+                    Label(task.schedule.summary, systemImage: "repeat")
+                    if let nextRunAt = task.nextRunAt, task.isEnabled {
+                        Text("下次 \(nextRunAt.formatted(date: .abbreviated, time: .shortened))")
+                    }
+                    Text(task.executionState.title)
+                        .foregroundStyle(task.executionState == .failed ? .red : .secondary)
+                }
+                .font(.caption)
+                if let message = task.executionMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(task.executionState == .failed ? .red : .secondary)
+                        .lineLimit(2)
+                }
+            }
+            Spacer()
+            Toggle("启用", isOn: Binding(get: { task.isEnabled }, set: onEnabledChange))
+                .toggleStyle(.switch)
+                .labelsHidden()
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help("删除任务")
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
+            }
+            .buttonStyle(.borderless)
+            .help("编辑任务")
+        }
+        .padding(.vertical, 10)
+        .opacity(task.isEnabled ? 1 : 0.65)
+    }
+}
+
+private struct MacScheduledTaskEditorView: View {
+    @ObservedObject var catalog: ScheduledTaskCatalog
+    @Environment(\.dismiss) private var dismiss
+    private let existingTask: ScheduledTask?
+    @State private var title = ""
+    @State private var prompt = ""
+    @State private var path = ""
+    @State private var modelID = ""
+    @State private var effort = "high"
+    @State private var scheduleKind = ScheduledTaskScheduleKind.once
+    @State private var runAt = Date().addingTimeInterval(300)
+    @State private var intervalMinutes = 60
+    @State private var cronExpression = "0 9 * * 1-5"
+
+    init(catalog: ScheduledTaskCatalog, task: ScheduledTask? = nil) {
+        self.catalog = catalog
+        existingTask = task
+        _title = State(initialValue: task?.title ?? "")
+        _prompt = State(initialValue: task?.prompt ?? "")
+        _path = State(initialValue: task?.cwd ?? "")
+        _modelID = State(initialValue: task?.modelID ?? "")
+        _effort = State(initialValue: task?.reasoningEffort ?? "high")
+        _scheduleKind = State(initialValue: task?.schedule.kind ?? .once)
+        _runAt = State(initialValue: task?.schedule.runAt ?? Date().addingTimeInterval(300))
+        _intervalMinutes = State(initialValue: task?.schedule.intervalMinutes ?? 60)
+        _cronExpression = State(initialValue: task?.schedule.cronExpression ?? "0 9 * * 1-5")
+    }
+
+    private var schedule: ScheduledTaskSchedule {
+        switch scheduleKind {
+        case .once: return .once(at: runAt)
+        case .interval: return .interval(minutes: intervalMinutes)
+        case .cron: return .cron(cronExpression)
+        }
+    }
+
+    private var canSave: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && path.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("/")
+            && schedule.validationMessage == nil
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button("取消") { dismiss() }
+                Spacer()
+                Text(existingTask == nil ? "新建定时任务" : "编辑定时任务").font(.headline)
+                Spacer()
+                Button("保存") { save() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canSave)
+            }
+            .padding(18)
+            Divider()
+            Form {
+                TextField("任务名称", text: $title)
+                TextField("项目绝对路径", text: $path)
+                TextField("执行提示词", text: $prompt, axis: .vertical)
+                    .lineLimit(3...8)
+                TextField("模型 ID（留空使用服务端默认）", text: $modelID)
+                Picker("思考级别", selection: $effort) {
+                    ForEach(["low", "medium", "high", "xhigh", "max", "ultra"], id: \.self) {
+                        Text($0).tag($0)
+                    }
+                }
+                Picker("计划类型", selection: $scheduleKind) {
+                    ForEach(ScheduledTaskScheduleKind.allCases) { kind in
+                        Text(kind.title).tag(kind)
+                    }
+                }
+                .pickerStyle(.segmented)
+                switch scheduleKind {
+                case .once:
+                    DatePicker("执行时间", selection: $runAt, in: Date()...)
+                case .interval:
+                    Stepper("每 \(intervalMinutes) 分钟", value: $intervalMinutes, in: 1...10_080)
+                case .cron:
+                    TextField("Cron：0 9 * * 1-5", text: $cronExpression)
+                        .font(.system(.body, design: .monospaced))
+                }
+                if let message = schedule.validationMessage {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                } else if let next = schedule.nextDate(after: Date()) {
+                    LabeledContent("下次执行", value: next.formatted(date: .abbreviated, time: .shortened))
+                }
+            }
+            .formStyle(.grouped)
+            .padding(18)
+        }
+        .frame(width: 620, height: 620)
+    }
+
+    private func save() {
+        var task = existingTask ?? ScheduledTask(
+            title: title,
+            prompt: prompt,
+            cwd: path,
+            schedule: schedule
+        )
+        task.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        task.prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        task.cwd = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        task.modelID = modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : modelID
+        task.reasoningEffort = effort
+        task.schedule = schedule
+        if existingTask == nil {
+            catalog.add(task)
+        } else {
+            catalog.replace(task)
+        }
+        dismiss()
+    }
+}
+
+private extension MonitoredThreadState {
+    var title: String {
+        switch self {
+        case .active: return "运行中"
+        case .completed: return "已完成"
+        case .failed: return "失败"
+        case .interrupted: return "已中断"
+        case .unknown: return "未知"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .active: return .orange
+        case .completed: return .green
+        case .failed: return .red
+        case .interrupted: return .secondary
+        case .unknown: return .secondary
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .active: return "sparkles"
+        case .completed: return "checkmark.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        case .interrupted: return "stop.circle.fill"
+        case .unknown: return "questionmark.circle"
+        }
     }
 }
 
