@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "server": {
+    "executable": "codex",
+    "bind": "0.0.0.0",
+    "port": 4500,
+    "token": "codeanywhere-lan-v1",
+    "autoStart": true
+  },
+  "bark": {
+    "enabled": false,
+    "serverURL": "http://192.168.1.10:8888",
+    "deviceKeyEnv": "BARK_DEVICE_KEY",
+    "group": "CodeAnywhere"
+  },
+  "monitor": {
+    "pollIntervalSeconds": 5,
+    "maximumDeliveryAttempts": 5
+  },
+  "statePath": "~/.local/state/codeanywhere/completion-state.json"
+}

@@ -72,6 +72,69 @@ codeanywhere://thread/<thread-id>
 
 Device Key 仅保存于 macOS Keychain。界面中的“已接受”只代表 Bark Server 返回 HTTP 成功且业务 `code` 为 `200`，不代表 iPhone 一定已经展示通知。
 
+## Linux Headless CLI / Daemon
+
+Linux 端先提供无 GUI 的 `codeanywhere` 命令行程序；协议、配置校验、Codex 生命周期、完成检测和 Bark 投递都抽在 `CodeAnywhereCore`，可与 macOS 客户端继续共用同一套领域代码。Linux WebSocket 传输使用 WebSocketKit + SwiftNIO，macOS 保留 Foundation WebSocket 实现。
+
+### 安装与构建
+
+目标机器需要 Swift 6.0.x（x86_64 Linux）和已登录的 Codex CLI。Debian 开发机上的 Codex CLI 路径可以通过 `PATH` 找到：
+
+```bash
+swift --version
+codex --version
+git clone <repository-url> CodeAnyWhere
+cd CodeAnyWhere
+swift build -c release
+install -Dm755 .build/*/release/codeanywhere "$HOME/.local/bin/codeanywhere"
+```
+
+依赖版本已锁定在 `Package.resolved`，避免 Swift 6.0.x 主机解析到要求 Swift 6.1 的最新 NIO 包。
+
+### 配置文件
+
+默认读取 `~/.config/codeanywhere/config.json`，也可以通过 `--config PATH` 指定。可从 [`config.example.json`](config.example.json) 开始复制。配置中不保存 Bark Device Key；启用 Bark 时，Device Key 只从 `deviceKeyEnv` 指定的环境变量读取。
+
+```bash
+mkdir -p "$HOME/.config/codeanywhere"
+cp config.example.json "$HOME/.config/codeanywhere/config.json"
+codeanywhere check
+```
+
+`server.token` 必须与移动端连接设置中的 Token 一致。默认 app-server 监听 `0.0.0.0:4500`；仅在可信局域网开放端口，并在主机防火墙中限制来源。
+
+### CLI 用法
+
+```bash
+codeanywhere check [--config PATH]   # 校验配置并定位 Codex CLI
+codeanywhere probe [--config PATH]   # 启动 app-server，验证协议后退出并清理子进程/Token 文件
+codeanywhere serve [--config PATH]   # 持续监听完成/失败 Turn，并轮询回退
+codeanywhere serve --duration 10     # 测试模式：运行 10 秒后自动退出（同样执行完整清理）
+```
+
+`serve` 会自动启动并持有自己的 `codex app-server` 进程，收到 SIGINT/SIGTERM 时先关闭 WebSocket，再精确终止该子进程并删除权限为 `0600` 的 capability-token 文件；即使子进程忽略 SIGTERM，也会在 2 秒后升级为 SIGKILL 兜底。capability-token 文件名内嵌持有进程 PID（`capability-<pid>-<uuid>.token`），下次启动时会清理已被进程终止而遗留的孤儿 token。手动中断的 Turn 不发送 Bark；通知仅针对 `completed` 和 `failed`。
+
+### systemd（可选）
+
+可将以下单元保存为 `~/.config/systemd/user/codeanywhere.service`，然后执行 `systemctl --user enable --now codeanywhere`：
+
+```ini
+[Unit]
+Description=CodeAnywhere Linux headless daemon
+After=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/codeanywhere serve --config %h/.config/codeanywhere/config.json
+Restart=on-failure
+RestartSec=3
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+
+[Install]
+WantedBy=default.target
+```
+
+如需 Bark，请通过 systemd 的凭据/环境管理注入 `BARK_DEVICE_KEY`，不要把 Device Key 写入配置文件或日志。
+
 ## 主要能力
 
 | 移动端 | Mac 端 |
