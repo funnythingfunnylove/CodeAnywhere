@@ -131,7 +131,7 @@ actor MacCodexWebSocketClient: MacCodexClientProtocol {
                     "clientInfo": .object([
                         "name": .string("codeanywhere-mac"),
                         "title": .string("CodeAnywhere Mac"),
-                        "version": .string("0.1.1")
+                        "version": .string("0.1.5")
                     ]),
                     "capabilities": .object(["experimentalApi": .bool(false)])
                 ]

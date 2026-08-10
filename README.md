@@ -42,11 +42,11 @@ CodeAnywhere 由两个原生 SwiftUI App 配合工作：
 
 ### 1. 安装 Mac App
 
-从 [GitHub Releases](../../releases/latest) 下载 `CodeAnywhere-0.1.4-macOS-universal.dmg`，打开后将 **CodeAnywhere Mac** 拖入 `Applications`。
+从 [GitHub Releases](../../releases/latest) 下载 `CodeAnywhere-0.1.5-macOS-universal.dmg`，打开后将 **CodeAnywhere Mac** 拖入 `Applications`。
 
 ### 2. 安装 iOS / iPadOS App
 
-先在设备上安装 [TestFlight](https://apps.apple.com/app/testflight/id899247664)，再打开 [CodeAnywhere iOS 公测链接](https://testflight.apple.com/join/bzBrXVS1)，接受邀请并安装最新测试版本。当前公测构建为 `0.1.3 (5)`。
+先在设备上安装 [TestFlight](https://apps.apple.com/app/testflight/id899247664)，再打开 [CodeAnywhere iOS 公测链接](https://testflight.apple.com/join/bzBrXVS1)，接受邀请并安装最新测试版本。当前公测构建为 `0.1.4 (3)`。
 
 ### 3. 启动服务
 
@@ -195,8 +195,9 @@ xcodebuild build \
 
 ## 版本与发布
 
-- macOS：`0.1.4 (5)`，Universal `arm64 + x86_64` DMG
-- iOS / iPadOS：源码版本 `0.1.3 (5)`；可用构建以 TestFlight 中显示为准
+- macOS：`0.1.5 (6)`，Universal `arm64 + x86_64` DMG
+- Linux：`0.1.5`，x86_64 headless CLI / daemon tarball
+- iOS / iPadOS：源码版本 `0.1.5`；当前可用 TestFlight 构建为 `0.1.4 (3)`
 - 正式产物需通过 Developer ID 签名、Apple Notarization、Staple 与 Gatekeeper 校验
 - 下载与 SHA-256 以 [GitHub Releases](../../releases) 为准
 
