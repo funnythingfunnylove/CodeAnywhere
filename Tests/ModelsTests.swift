@@ -518,10 +518,28 @@ final class ModelsTests: XCTestCase {
             let threads = try await client.call(method: "thread/list", params: ["limit": .number(1)])
             XCTAssertNotNil(threads["data"]?.arrayValue)
             if let threadID = threads["data"]?.arrayValue?.first?["id"]?.stringValue {
-                let resumed = try await client.call(
-                    method: "thread/resume",
-                    params: ["threadId": .string(threadID)]
+                // The local app-server may currently be serving the interactive
+                // Codex task that launched this test process. Do not turn that
+                // expected writer conflict into a flaky protocol smoke failure.
+                let current = try await client.call(
+                    method: "thread/read",
+                    params: ["threadId": .string(threadID), "includeTurns": .bool(true)]
                 )
+                if let currentThread = current["thread"],
+                   let detail = ThreadDetail(json: currentThread),
+                   detail.thread.activity == .active {
+                    throw XCTSkip("本机 Codex 当前会话仍有任务执行，跳过 thread/resume smoke test")
+                }
+
+                let resumed: JSONValue
+                do {
+                    resumed = try await client.call(
+                        method: "thread/resume",
+                        params: ["threadId": .string(threadID)]
+                    )
+                } catch let error as CodexClientError where error.isActiveWriterConflict {
+                    throw XCTSkip("本机 Codex 当前会话仍有任务执行，跳过 thread/resume smoke test")
+                }
                 XCTAssertEqual(resumed["thread"]?["id"]?.stringValue, threadID)
 
                 let read = try await client.call(
