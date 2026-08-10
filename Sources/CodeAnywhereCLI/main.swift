@@ -70,6 +70,7 @@ struct CodeAnywhereCLI {
                     exit(0)
                 }
             }
+            try await daemon.start()
             if let duration = try option(arguments, name: "--duration").flatMap(Double.init) {
                 guard duration > 0 else {
                     throw NSError(domain: "CodeAnywhereCLI", code: 2, userInfo: [NSLocalizedDescriptionKey: "--duration 必须大于 0"])

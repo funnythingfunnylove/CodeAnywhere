@@ -1,0 +1,12 @@
+[Unit]
+Description=CodeAnywhere Linux headless daemon
+After=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/codeanywhere serve --config %h/.config/codeanywhere/config.json
+Restart=on-failure
+RestartSec=3
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+
+[Install]
+WantedBy=default.target
